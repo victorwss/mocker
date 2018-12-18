@@ -1,0 +1,190 @@
+plugins {
+    id "com.github.spotbugs" version "1.6.5"
+    id "java-library"
+    id "maven-publish"
+    id "checkstyle"
+    id "signing"
+    id "jacoco"
+}
+
+group = "ninja.javahacker"
+version = "1.0.0"
+ext.artifactBaseName = "mocker"
+ext.moduleName = "ninja.javahacker.mocker"
+
+ext.javaCompiler = "11"
+ext.doclint = false
+ext.extraCompilerArgs = []
+
+ext.versionApiguardian = "1.0.0"
+ext.versionCheckstyle = "8.14"
+ext.versionFbContrib = "7.4.3.sb"
+ext.versionFindSecBugs = "1.8.0"
+ext.versionJaCoCo = "0.8.2"
+ext.versionJcip = "1.0"
+ext.versionJunit = "5.3.1"
+ext.versionJsr305 = "3.0.2"
+ext.versionLombok = "1.18.4"
+ext.versionPmd = "6.9.0"
+ext.versionReifiedGenerics = "1.0.0"
+ext.versionSpotBugs = "3.1.8"
+
+dependencies {
+
+    // JUnit
+    testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter-api', version: versionJunit
+    testRuntimeOnly group: 'org.junit.jupiter', name: 'junit-jupiter-engine', version: versionJunit
+    testRuntimeOnly group: 'org.junit.jupiter', name: 'junit-jupiter-params', version: versionJunit
+    testCompileOnly group: 'org.apiguardian', name: 'apiguardian-api', version: versionApiguardian
+
+    // Lombok
+    if (versionLombok != "edge") {
+        annotationProcessor group: 'org.projectlombok', name: 'lombok', version: versionLombok
+        compileOnly group: 'org.projectlombok', name: 'lombok', version: versionLombok
+        testAnnotationProcessor group: 'org.projectlombok', name: 'lombok', version: versionLombok
+        testCompileOnly group: 'org.projectlombok', name: 'lombok', version: versionLombok
+    } else {
+        annotationProcessor files("../libs/lombok-edge.jar")
+        compileOnly files("../libs/lombok-edge.jar")
+        testAnnotationProcessor files("../libs/lombok-edge.jar")
+        testCompileOnly files("../libs/lombok-edge.jar")
+    }
+
+    // PMD
+    compileOnly group: 'net.sourceforge.pmd', name: 'pmd', version: versionPmd
+    testCompileOnly group: 'net.sourceforge.pmd', name: 'pmd', version: versionPmd
+
+    // Reified-Generics
+    api group: 'ninja.javahacker', name: 'reified-generic', version: versionReifiedGenerics
+
+    // SpotBugs + plugins
+    spotbugs group: 'com.github.spotbugs', name: 'spotbugs', version: versionSpotBugs
+    spotbugs configurations.spotbugsPlugins.dependencies
+    api group: 'net.jcip', name: 'jcip-annotations', version: versionJcip
+    api group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: versionSpotBugs
+    spotbugsPlugins group: 'com.h3xstream.findsecbugs', name: 'findsecbugs-plugin', version: versionFindSecBugs
+    spotbugsPlugins group: 'com.mebigfatguy.fb-contrib', name: 'fb-contrib', version: versionFbContrib
+}
+
+println "Using Java " + org.gradle.api.JavaVersion.current() + "."
+
+repositories {
+    flatDir {
+        dirs 'libs'
+    }
+    mavenLocal()
+    jcenter()
+    mavenCentral()
+}
+
+tasks.withType(JavaCompile) {
+    sourceCompatibility = javaCompiler
+    targetCompatibility = javaCompiler
+    options.encoding = 'UTF-8'
+    options.debug = true
+    options.fork = true
+    options.compilerArgs << "-parameters" << "-Xlint:all,-processing"
+    extraCompilerArgs.each { e -> options.compilerArgs << e }
+}
+
+compileJava {
+    if (doclint) options.compilerArgs << "-Xdoclint:all"
+}
+
+tasks.withType(Javadoc) {
+    options.encoding = "UTF-8"
+    options.docEncoding = "UTF-8"
+    options.addBooleanOption('html5', true)
+    options.tags = ["apiNote:a:API Note:", "implSpec:a:Implementation Requirements:", "implNote:a:Implementation Note:"]
+}
+
+checkstyleMain {
+    configFile = rootProject.file("config/checkstyle/main.xml")
+}
+
+checkstyleTest {
+    configFile = rootProject.file("config/checkstyle/test.xml")
+}
+
+checkstyle {
+    toolVersion = versionCheckstyle
+    configProperties = [
+        "checkstyle.cache.file": "${buildDir}/checkstyle.cache",
+    ]
+    ignoreFailures = true
+    showViolations = true
+}
+
+spotbugs {
+    toolVersion = versionSpotBugs
+    effort = "max"
+    reportLevel = "low"
+    omitVisitors = ["WeakExceptionMessaging", "OverlyPermissiveMethod"]
+}
+
+tasks.withType(com.github.spotbugs.SpotBugsTask) {
+    pluginClasspath = project.configurations.spotbugsPlugins
+    reports {
+        xml.enabled = false
+        html.enabled = true
+    }
+}
+
+spotbugsTest.enabled = false
+
+jar {
+    baseName = artifactBaseName
+    duplicatesStrategy = "exclude"
+    inputs.property("moduleName", moduleName)
+    manifest {
+        attributes("Automatic-Module-Name": moduleName)
+    }
+}
+
+task sourcesJar(type: Jar) {
+    from sourceSets.main.allSource
+    classifier "sources"
+}
+
+task javadocJar(type: Jar) {
+    from javadoc
+    classifier "javadoc"
+}
+
+test {
+    useJUnitPlatform()
+}
+
+jacoco {
+    toolVersion = versionJaCoCo
+}
+
+jacocoTestReport {
+    reports {
+        xml.enabled false
+        csv.enabled false
+        html.destination file("${buildDir}/jacocoHtml")
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId jar.baseName
+            from components.java
+            artifact sourcesJar
+            artifact javadocJar
+            pom {
+                developers {
+                    developer {
+                        name = 'Victor Williams Stafusa da Silva'
+                        email = 'victorwssilva@gmail.com'
+                    }
+                }
+            }
+        }
+    }
+    repositories {
+        mavenLocal()
+    }
+}
