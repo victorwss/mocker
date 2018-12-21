@@ -1,28 +1,28 @@
 package ninja.javahacker.mocker;
 
+import edu.umd.cs.findbugs.annotations.Nullable;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.Synchronized;
 import lombok.Value;
 import lombok.experimental.FieldDefaults;
+import lombok.experimental.NonFinal;
 import lombok.experimental.Wither;
 import ninja.javahacker.reifiedgeneric.ReifiedGeneric;
 
@@ -43,13 +43,6 @@ public class Mocker<A> {
             double.class, 0.0
     );
 
-    private static final Action UNEXPECTED = call -> {
-        var a = call.getReturned();
-        var b = call.getRaised();
-        if (a.isPresent() || b.isPresent()) return call;
-        return call.withRaised(Optional.of(new AssertionError("This call is unexpected.")));
-    };
-
     @NonNull
     @Getter
     A target;
@@ -58,7 +51,7 @@ public class Mocker<A> {
     Class<A> type;
 
     @NonNull
-    Map<String, Group> actions;
+    Map<String, Rule<A, ?>> actions;
 
     @NonNull
     List<String> names;
@@ -66,11 +59,13 @@ public class Mocker<A> {
     @NonNull
     AtomicInteger nextAuto;
 
-    @Value
+    @Data
+    @AllArgsConstructor
     @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-    private static class Group {
-        @NonNull List<Predicate<? super Call>> tests;
-        @NonNull Action action;
+    private static class Rule<A, R> {
+        @NonFinal boolean enabled;
+        @NonNull Predicate<Call<A>> test;
+        @NonNull Action<A, R> action;
     }
 
     private Mocker(@NonNull Class<A> type) {
@@ -85,23 +80,22 @@ public class Mocker<A> {
         this.target = type.cast(Proxy.newProxyInstance(ccl, new Class<?>[] {type}, this::invoke));
     }
 
+    @Nullable
     @SuppressFBWarnings("UP_UNUSED_PARAMETER")
-    private Object invoke(Object instance, Method m, Object[] args) {
+    private Object invoke(Object instance, Method m, Object[] args) throws Throwable {
         if (args == null) args = new Object[0];
-        var c = new Call(target, m, List.of(args), Optional.empty(), Optional.empty());
+        var call = new Call<>(target, m, List.of(args));
         for (var s : names) {
             var e = actions.get(s);
-            for (var t : e.getTests()) {
-                if (!t.test(c)) return e.getAction().run(c);
-            }
+            if (e.enabled && e.test.test(call)) return e.action.proccess(call);
         }
-        UNEXPECTED.run(c);
-        throw new AssertionError();
+        throw new AssertionError("This call (" + m.toString() + ") is unexpected.");
     }
 
+    @SuppressWarnings("unchecked")
     @SuppressFBWarnings("UPM_UNCALLED_PRIVATE_METHOD")
-    private static Object defaultReturnFor(Method m) {
-        return ZEROS.getOrDefault(m.getReturnType(), null);
+    private static <R> R defaultReturnFor(Method m) {
+        return (R) ZEROS.getOrDefault(m.getReturnType(), null);
     }
 
     public static <A> Mocker<A> mock(@NonNull Class<A> type) {
@@ -121,22 +115,37 @@ public class Mocker<A> {
 
     @Synchronized
     @SuppressFBWarnings("UPM_UNCALLED_PRIVATE_METHOD")
-    private void put(@NonNull String name, @NonNull List<Predicate<? super Call>> tests, @NonNull Action action) {
-        actions.put(name, new Group(tests, action));
+    private <R> void put(@NonNull String name, @NonNull Predicate<Call<A>> test, @NonNull Action<A, R> action) {
+        actions.remove(name);
+        names.remove(name);
+        actions.put(name, new Rule<>(true, test, action));
         names.add(name);
     }
 
     @Synchronized
-    @SuppressFBWarnings("UPM_UNCALLED_PRIVATE_METHOD")
-    private void remove(@NonNull String name) {
-        actions.remove(name);
-        names.remove(name);
+    public void disable(@NonNull String... names) {
+        for (var s : names) {
+            actions.get(s).enabled = false;
+        }
     }
 
     @Synchronized
-    @SuppressFBWarnings("UPM_UNCALLED_PRIVATE_METHOD")
+    public void enable(@NonNull String... names) {
+        for (var s : names) {
+            actions.get(s).enabled = true;
+        }
+    }
+
+    @Synchronized
     public boolean exists(@NonNull String name) {
         return actions.containsKey(name);
+    }
+
+    @Synchronized
+    public boolean isEnabled(@NonNull String name) {
+        var r = actions.get(name);
+        if (r == null) throw new IllegalArgumentException();
+        return r.enabled;
     }
 
     public OngoingRuleDefinition<A> rule(@NonNull String name) {
@@ -144,7 +153,7 @@ public class Mocker<A> {
     }
 
     public OngoingRuleDefinition<A> rule() {
-        return new OngoingRuleDefinition<>(this, "$AUTO$" + nextAuto.incrementAndGet());
+        return rule("$AUTO$" + nextAuto.incrementAndGet());
     }
 
     @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -152,181 +161,118 @@ public class Mocker<A> {
     public static final class OngoingRuleDefinition<A> {
         @NonNull Mocker<A> owner;
         @NonNull String rule;
-        @NonNull List<Predicate<? super Call>> conditions = new ArrayList<>();
 
-        {
-            conditions.add(c -> false);
+        @NonNull
+        @SuppressWarnings("overloads")
+        public <S> Receiver<A, S> function(@NonNull Function<A, S> what) {
+            Method[] choosen = new Method[1];
+            InvocationHandler ih = (p, m, args) -> {
+                if (choosen[0] != null) {
+                    throw new IllegalArgumentException("Don't call more than one method in the given object!");
+                }
+                choosen[0] = m;
+                return defaultReturnFor(m);
+            };
+            var ccl = Thread.currentThread().getContextClassLoader();
+            var t = owner.type;
+            var stubber = t.cast(Proxy.newProxyInstance(ccl, new Class<?>[] {t}, ih));
+            what.apply(stubber);
+            if (choosen[0] == null) throw new IllegalArgumentException("You didn't called anything in the given object!");
+            return new Receiver<>(owner, rule, c -> c.getMethod() == choosen[0]);
         }
 
         @NonNull
-        public OngoingRuleDefinition<A> when(@NonNull Consumer<A> what) {
-            var choosen = new HashSet<Method>();
+        @SuppressWarnings("overloads")
+        public VoidReceiver<A> procedure(@NonNull Consumer<A> what) {
+            Method[] choosen = new Method[1];
             InvocationHandler ih = (p, m, args) -> {
-                if (choosen.contains(m)) {
-                    throw new IllegalArgumentException("Don't call the same method more than once in the given object!");
+                if (choosen[0] != null) {
+                    throw new IllegalArgumentException("Don't call more than one method in the given object!");
                 }
-                choosen.add(m);
+                choosen[0] = m;
                 return defaultReturnFor(m);
             };
             var ccl = Thread.currentThread().getContextClassLoader();
             var t = owner.type;
             var stubber = t.cast(Proxy.newProxyInstance(ccl, new Class<?>[] {t}, ih));
             what.accept(stubber);
-            if (choosen.isEmpty()) throw new IllegalArgumentException("You didn't called anything in the given object!");
-            return setFor(choosen);
+            if (choosen[0] == null) throw new IllegalArgumentException("You didn't called anything in the given object!");
+            return new VoidReceiver<>(owner, rule, c -> c.getMethod() == choosen[0]);
         }
 
-        @NonNull
-        public OngoingRuleDefinition<A> where(@NonNull Predicate<? super Call> cond) {
-            conditions.add(cond);
-            return this;
-        }
-
-        @NonNull
-        public OngoingRuleDefinition<A> where(@NonNull BooleanSupplier cond) {
-            return where(c -> cond.getAsBoolean());
-        }
-
-        public OngoingRuleDefinition<A> setFor(@NonNull Method... methods) {
-            return setFor(List.of(methods));
-        }
-
-        public OngoingRuleDefinition<A> setFor(@NonNull Collection<Method> methods) {
-            var cm = List.copyOf(methods);
-            return where(c -> cm.contains(c.getMethod()));
-        }
-
-        public Receiver<A> then() {
-            return new Receiver<>(owner, rule, x -> owner.put(rule, conditions, x), UNEXPECTED);
+        public Receiver<A, ?> anyMethod() {
+            return new Receiver<>(owner, rule, c -> true);
         }
     }
 
     @AllArgsConstructor(access = AccessLevel.PRIVATE)
     @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-    public static final class Receiver<A> {
+    public static final class Receiver<A, R> {
 
         @NonNull Mocker<A> owner;
         @NonNull String rule;
-        @NonNull Consumer<Action> does;
-        @NonNull Action previous;
+        @NonNull Predicate<Call<A>> condition;
 
-        public Receiver<A> go(@NonNull Action a) {
-            Action b = a.append(previous);
-            does.accept(b);
-            return new Receiver<>(owner, rule, does, b);
+        @NonNull
+        public Receiver<A, R> where(@NonNull Predicate<? super Call<? super A>> cond) {
+            return new Receiver<>(owner, rule, condition.and(cond));
         }
 
-        public Receiver<A> go(@NonNull DirectAction a) {
-            return go((Action) a);
+        @NonNull
+        public Receiver<A, R> where(@NonNull BooleanSupplier cond) {
+            return where(c -> cond.getAsBoolean());
         }
 
-        public Receiver<A> go(@NonNull SimpleAction a) {
-            return go((Action) a);
+        public void executes(@NonNull Action<A, R> a) {
+            owner.put(rule, condition, a);
+        }
+    }
+
+    @AllArgsConstructor(access = AccessLevel.PRIVATE)
+    @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+    public static final class VoidReceiver<A> {
+
+        @NonNull Mocker<A> owner;
+        @NonNull String rule;
+        @NonNull Predicate<Call<A>> condition;
+
+        @NonNull
+        public VoidReceiver<A> where(@NonNull Predicate<? super Call<? super A>> cond) {
+            return new VoidReceiver<>(owner, rule, condition.and(cond));
         }
 
-        public Receiver<A> go(@NonNull SimplerAction a) {
-            return go((Action) a);
+        @NonNull
+        public VoidReceiver<A> where(@NonNull BooleanSupplier cond) {
+            return where(c -> cond.getAsBoolean());
         }
 
-        public Receiver<A> go(@NonNull SimplestAction a) {
-            return go((Action) a);
-        }
-
-        public Receiver<A> fail() {
-            return throwFrom(() -> new AssertionError());
-        }
-
-        public Receiver<A> delete() {
-            return go(() -> owner.remove(rule));
-        }
-
-        public Receiver<A> returnNothing() {
-            return go((i, m, a) -> defaultReturnFor(m));
-        }
-
-        public Receiver<A> returnFrom(Supplier<?> what) {
-            return go(what::get);
-        }
-
-        public Receiver<A> returnThe(Object what) {
-            return go(() -> what);
-        }
-
-        public Receiver<A> throwFrom(Supplier<? extends Throwable> what) {
-            return go(() -> { throw what.get(); });
-        }
-
-        public Receiver<A> throwThe(Throwable what) {
-            return go(() -> { throw what; });
+        public void executes(@NonNull VoidAction<A> a) {
+            owner.put(rule, condition, a);
         }
     }
 
     @Value
-    @Wither
+    @Wither(AccessLevel.PRIVATE)
     @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-    public static final class Call {
-        @NonNull Object instance;
+    public static final class Call<A> {
+        @NonNull A instance;
         @NonNull Method method;
         @NonNull List<?> arguments;
-        @NonNull Optional<Object> returned;
-        @NonNull Optional<Throwable> raised;
     }
 
-    public static interface Action {
-        public Call run(@NonNull Call call);
-
-        public default Action append(@NonNull Action p) {
-            return c -> p.run(run(c));
-        }
-
-        public default Action prepend(@NonNull Action p) {
-            return c -> run(p.run(c));
-        }
-
-        public static Action choose(@NonNull Predicate<? super Call> p, @NonNull Action a, @NonNull Action b) {
-            return c -> (p.test(c) ? a : b).run(c);
-        }
+    @FunctionalInterface
+    public static interface Action<A, R> {
+        public R proccess(@NonNull Call<A> call) throws Throwable;
     }
 
-    public static interface DirectAction extends Action {
-        public Object run2(@NonNull Object instance, @NonNull Method method, @NonNull List<?> args) throws Throwable;
-
+    @FunctionalInterface
+    public static interface VoidAction<A> extends Action<A, Void> {
         @Override
-        public default Call run(@NonNull Call call) {
-            try {
-                return call.withReturned(Optional.ofNullable(run2(call.getInstance(), call.getMethod(), call.getArguments())));
-            } catch (Throwable t) {
-                return call.withRaised(Optional.of(t));
-            }
+        public default Void proccess(@NonNull Call<A> call) throws Throwable {
+            run(call);
+            return null;
         }
+
+        public void run(@NonNull Call<A> call) throws Throwable;
     }
-
-    public static interface SimpleAction extends DirectAction {
-        public Object run3(@NonNull List<?> args) throws Throwable;
-
-        @Override
-        public default Object run2(@NonNull Object instance, @NonNull Method method, @NonNull List<?> args) throws Throwable {
-            return run3(args);
-        }
-    }
-
-    public static interface SimplerAction extends SimpleAction {
-        public Object run4() throws Throwable;
-
-        @Override
-        public default Object run3(@NonNull List<?> args) throws Throwable {
-            return run4();
-        }
-    }
-
-    public static interface SimplestAction extends DirectAction {
-        public void run3() throws Throwable;
-
-        @Override
-        public default Object run2(@NonNull Object instance, @NonNull Method method, @NonNull List<?> args) throws Throwable {
-            run3();
-            return ZEROS.getOrDefault(method.getReturnType(), null);
-        }
-    }
-
 }
