@@ -5,8 +5,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -54,9 +53,6 @@ public class Mocker<A> {
     Map<String, Rule<A, ?>> actions;
 
     @NonNull
-    List<String> names;
-
-    @NonNull
     AtomicInteger nextAuto;
 
     @Data
@@ -72,8 +68,7 @@ public class Mocker<A> {
         if (!type.isInterface()) throw new IllegalArgumentException();
 
         this.type = type;
-        this.actions = new HashMap<>();
-        this.names = new ArrayList<>();
+        this.actions = new LinkedHashMap<>();
         this.nextAuto = new AtomicInteger(0);
 
         var ccl = Thread.currentThread().getContextClassLoader();
@@ -81,12 +76,12 @@ public class Mocker<A> {
     }
 
     @Nullable
+    @Synchronized
     @SuppressFBWarnings("UP_UNUSED_PARAMETER")
     private Object invoke(Object instance, Method m, Object[] args) throws Throwable {
         if (args == null) args = new Object[0];
         var call = new Call<>(target, m, List.of(args));
-        for (var s : names) {
-            var e = actions.get(s);
+        for (var e : actions.values()) {
             if (e.enabled && e.test.test(call)) return e.action.proccess(call);
         }
         throw new AssertionError("This call (" + m.toString() + ") is unexpected.");
@@ -107,9 +102,9 @@ public class Mocker<A> {
     }
 
     @NonNull
+    @Synchronized
     public Mocker<A> reset() {
         actions.clear();
-        names.clear();
         return this;
     }
 
@@ -117,22 +112,27 @@ public class Mocker<A> {
     @SuppressFBWarnings("UPM_UNCALLED_PRIVATE_METHOD")
     private <R> void put(@NonNull String name, @NonNull Predicate<Call<A>> test, @NonNull Action<A, R> action) {
         actions.remove(name);
-        names.remove(name);
         actions.put(name, new Rule<>(true, test, action));
-        names.add(name);
+    }
+
+    @Synchronized
+    private Rule<A, ?> getAction(@NonNull String name) {
+        var r = actions.get(name);
+        if (r == null) throw new IllegalArgumentException("No action is mapped as " + name + ". There are only " + actions.keySet());
+        return r;
     }
 
     @Synchronized
     public void disable(@NonNull String... names) {
         for (var s : names) {
-            actions.get(s).enabled = false;
+            getAction(s).enabled = false;
         }
     }
 
     @Synchronized
     public void enable(@NonNull String... names) {
         for (var s : names) {
-            actions.get(s).enabled = true;
+            getAction(s).enabled = true;
         }
     }
 
@@ -143,7 +143,7 @@ public class Mocker<A> {
 
     @Synchronized
     public boolean isEnabled(@NonNull String name) {
-        var r = actions.get(name);
+        var r = getAction(name);
         if (r == null) throw new IllegalArgumentException();
         return r.enabled;
     }
