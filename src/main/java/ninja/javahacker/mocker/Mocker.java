@@ -26,6 +26,14 @@ import lombok.experimental.Wither;
 import ninja.javahacker.reifiedgeneric.ReifiedGeneric;
 
 /**
+ * Creates mock implementations of interfaces.
+ *
+ * A mocked instance is typically created through the static methods {@link #mock(Class)} or
+ * {@link #mock(ReifiedGeneric)}.
+ *
+ * Any unconfigured method called on a mock instance will throw an {@link AssertionError}.
+ * Hence, to make the mock usable, you'll need to configure it through rules.
+ *
  * @author Victor Williams Stafusa da Silva
  */
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -52,9 +60,6 @@ public class Mocker<A> {
     @NonNull
     Map<String, Rule<A, ?>> actions;
 
-    @NonNull
-    AtomicInteger nextAuto;
-
     @Data
     @AllArgsConstructor
     @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -69,7 +74,6 @@ public class Mocker<A> {
 
         this.type = type;
         this.actions = new LinkedHashMap<>();
-        this.nextAuto = new AtomicInteger(0);
 
         var ccl = Thread.currentThread().getContextClassLoader();
         this.target = type.cast(Proxy.newProxyInstance(ccl, new Class<?>[] {type}, this::invoke));
@@ -93,14 +97,33 @@ public class Mocker<A> {
         return (R) ZEROS.getOrDefault(m.getReturnType(), null);
     }
 
+    /**
+     * Creates a mocker instance wrapping a mock instance implementing a given interface.
+     * @param <A> The type implemented by the mock.
+     * @param type The type implemented by the mock.
+     * @return A new mock instance of the interface.
+     */
     public static <A> Mocker<A> mock(@NonNull Class<A> type) {
         return new Mocker<>(type);
     }
 
+
+    /**
+     * Creates a mocker instance wrapping a mock instance implementing a given type that should be an interface.
+     * This method is preferable to the {@link mock(Class)} when used in generic interfaces.
+     * Otherwise, the resulting object type would be a raw type.
+     * @param <A> The type implemented by the mock.
+     * @param type The type implemented by the mock.
+     * @return A new mock instance of the specified type.
+     */
     public static <A> Mocker<A> mock(@NonNull ReifiedGeneric<A> type) {
         return new Mocker<>(type.raw());
     }
 
+    /**
+     * Clear the configurations of the mock returning it to its starting state.
+     * @return {@code this}.
+     */
     @NonNull
     @Synchronized
     public Mocker<A> reset() {
@@ -112,7 +135,7 @@ public class Mocker<A> {
     @SuppressFBWarnings("UPM_UNCALLED_PRIVATE_METHOD")
     private <R> void put(@NonNull String name, @NonNull Predicate<Call<A>> test, @NonNull Action<A, R> action) {
         actions.remove(name);
-        actions.put(name, new Rule<>(true, test, action));
+        actions.put(name, new Rule<>(false, test, action));
     }
 
     @Synchronized
@@ -136,11 +159,22 @@ public class Mocker<A> {
         }
     }
 
+    /**
+     * Checks if there is any rule with the given name, regardless the fact of it being enabled or not.
+     * @param name The name of the rule.
+     * @return {@code true} if there is some rule with the given name, {@code false} otherwise.
+     */
     @Synchronized
     public boolean exists(@NonNull String name) {
         return actions.containsKey(name);
     }
 
+    /**
+     * Checks if the rule with the given name is enabled.
+     * @param name The name of the rule.
+     * @return {@code true} if there exists an enabled rule with the given name, {@code false} otherwise.
+     * @throws IllegalArgumentException If there is no such rule as the given name.
+     */
     @Synchronized
     public boolean isEnabled(@NonNull String name) {
         var r = getAction(name);
@@ -148,12 +182,13 @@ public class Mocker<A> {
         return r.enabled;
     }
 
+    /**
+     * Start the definition of a new rule. Either a brand new rule or overwriting an existing one.
+     * @param name The name of the rule.
+     * @return A builder object for the new rule definition.
+     */
     public OngoingRuleDefinition<A> rule(@NonNull String name) {
         return new OngoingRuleDefinition<>(this, name);
-    }
-
-    public OngoingRuleDefinition<A> rule() {
-        return rule("$AUTO$" + nextAuto.incrementAndGet());
     }
 
     @AllArgsConstructor(access = AccessLevel.PRIVATE)
