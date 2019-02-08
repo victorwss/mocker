@@ -8,5 +8,5 @@
     <spec-name>j2se</spec-name>
     <spec-version>11</spec-version>
   </script-platform>
-  <gradle-home>?INST=C:\Gradle\gradle-4.10.2</gradle-home>
+  <gradle-home>?INST=C:\Gradle\gradle-5.2</gradle-home>
 </gradle-project-properties>
