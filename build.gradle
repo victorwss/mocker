@@ -1,5 +1,5 @@
 plugins {
-    id "com.github.spotbugs" version "3.0.0"
+    id "com.github.spotbugs" version "4.0.5"
     id "java-library"
     id "maven-publish"
     id "checkstyle"
@@ -15,7 +15,17 @@ ext.moduleName = "ninja.javahacker.mocker"
 
 ext.javaCompiler = "13"
 ext.doclint = true
-ext.extraCompilerArgs = []
+ext.extraCompilerArgs = [
+    "--add-opens", "jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
+    "--add-opens", "jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED",
+    "--add-opens", "jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
+    "--add-opens", "jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED",
+    "--add-opens", "jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED",
+    "--add-opens", "jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED",
+    "--add-opens", "jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED",
+    "--add-opens", "jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
+    "--add-opens", "jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED"
+]
 
 ext.versionApiguardian = "1.1.0"
 ext.versionCheckstyle = "8.31"
@@ -27,7 +37,7 @@ ext.versionJunit = "5.6.1"
 ext.versionJsr305 = "3.0.2"
 ext.versionLombok = "1.18.12"
 ext.versionPmd = "6.22.0"
-ext.versionReifiedGenerics = "1.0.1-b20200406"
+ext.versionReifiedGenerics = "1.0.1-b20200410"
 ext.versionSpotBugs = "4.0.1"
 
 dependencies {
@@ -90,6 +100,10 @@ tasks.withType(JavaCompile) {
 
 compileJava {
     if (doclint) options.compilerArgs << "-Xdoclint:all/protected"
+    sourceSets {
+        main.java.srcDirs = ['src/main/java']
+        main.resources.srcDirs = ['src/main/resources']
+    }
 }
 
 tasks.withType(Javadoc) {
@@ -123,8 +137,7 @@ spotbugs {
     omitVisitors = ["WeakExceptionMessaging", "OverlyPermissiveMethod"]
 }
 
-tasks.withType(com.github.spotbugs.SpotBugsTask) {
-    pluginClasspath = project.configurations.spotbugsPlugins
+tasks.withType(com.github.spotbugs.snom.SpotBugsTask) {
     reports {
         xml.enabled = false
         html.enabled = true
