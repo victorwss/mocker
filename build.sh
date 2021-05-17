@@ -1,1 +1,1 @@
-gradle clean build publish publishToMavenLocal
+gradle --warning-mode all --stacktrace clean build publish publishToMavenLocal

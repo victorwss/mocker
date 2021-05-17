@@ -1,115 +1,128 @@
 plugins {
-    id "com.github.spotbugs" version "4.0.5"
+    id("com.github.spotbugs") version "4.7.1"
     id "java-library"
     id "maven-publish"
     id "checkstyle"
     id "signing"
     id "jacoco"
+    id "pmd"
 }
 
 description = "Mocker"
 group = "ninja.javahacker"
-version = "1.0.1-b20200406"
-ext.artifactBaseName = "mocker"
-ext.moduleName = "ninja.javahacker.mocker"
+version = "1.1.0-2021.05.17"
 
-ext.javaCompiler = "13"
-ext.doclint = true
-ext.extraCompilerArgs = [
-    "--add-opens", "jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
-    "--add-opens", "jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED",
-    "--add-opens", "jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
-    "--add-opens", "jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED",
-    "--add-opens", "jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED",
-    "--add-opens", "jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED",
-    "--add-opens", "jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED",
-    "--add-opens", "jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
-    "--add-opens", "jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED"
-]
+def artifactName = "mocker"
+def moduleName = "ninja.javahacker.mocker"
 
-ext.versionApiguardian = "1.1.0"
-ext.versionCheckstyle = "8.31"
-ext.versionSbContrib = "7.4.7"
-ext.versionFindSecBugs = "1.10.1"
-ext.versionJaCoCo = "0.8.5"
-ext.versionJcip = "1.0"
-ext.versionJunit = "5.6.1"
-ext.versionJsr305 = "3.0.2"
-ext.versionLombok = "1.18.12"
-ext.versionPmd = "6.22.0"
-ext.versionReifiedGenerics = "1.0.1-b20200410"
-ext.versionSpotBugs = "4.0.1"
+def versionJavaCompiler = "10"
+def doclint = true
+
+def versionApiguardian = "1.1.1"
+def versionCheckstyle = "8.42"
+def versionSbContrib = "7.4.7"
+def versionFindSecBugs = "1.11.0"
+def versionJaCoCo = "0.8.6"
+def versionJcip = "1.0"
+def versionJunit = "5.8.0-M1"
+def versionJsr305 = "3.0.2"
+def versionLombok = "1.18.20"
+def versionPmd = "6.34.0"
+def versionReifiedGenerics = "1.1.0-2021.05.17"
+def versionSpotBugs = "4.2.3"
 
 dependencies {
 
     // JUnit
-    testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter-api', version: versionJunit
-    testRuntimeOnly group: 'org.junit.jupiter', name: 'junit-jupiter-engine', version: versionJunit
-    testRuntimeOnly group: 'org.junit.jupiter', name: 'junit-jupiter-params', version: versionJunit
-    testCompileOnly group: 'org.apiguardian', name: 'apiguardian-api', version: versionApiguardian
+    testImplementation(group: "org.junit.jupiter", name: "junit-jupiter-api", version: versionJunit)
+    testRuntimeOnly(group: "org.junit.jupiter", name: "junit-jupiter-engine", version: versionJunit)
+    testRuntimeOnly(group: "org.junit.jupiter", name: "junit-jupiter-params", version: versionJunit)
+    testCompileOnly(group: "org.apiguardian", name: "apiguardian-api", version: versionApiguardian)
 
     // Lombok
     if (versionLombok != "edge") {
-        annotationProcessor group: 'org.projectlombok', name: 'lombok', version: versionLombok
-        compileOnly group: 'org.projectlombok', name: 'lombok', version: versionLombok
-        testAnnotationProcessor group: 'org.projectlombok', name: 'lombok', version: versionLombok
-        testCompileOnly group: 'org.projectlombok', name: 'lombok', version: versionLombok
+        annotationProcessor(group: "org.projectlombok", name: "lombok", version: versionLombok)
+        compileOnly(group: "org.projectlombok", name: "lombok", version: versionLombok)
+        testAnnotationProcessor(group: "org.projectlombok", name: "lombok", version: versionLombok)
+        testCompileOnly(group: "org.projectlombok", name: "lombok", version: versionLombok)
     } else {
-        annotationProcessor files("../libs/lombok-edge.jar")
-        compileOnly files("../libs/lombok-edge.jar")
-        testAnnotationProcessor files("../libs/lombok-edge.jar")
-        testCompileOnly files("../libs/lombok-edge.jar")
+        annotationProcessor(files("libs/lombok-edge.jar"))
+        compileOnly(files("libs/lombok-edge.jar"))
+        testAnnotationProcessor(files("libs/lombok-edge.jar"))
+        testCompileOnly(files("libs/lombok-edge.jar"))
     }
 
-    // PMD
-    compileOnly group: 'net.sourceforge.pmd', name: 'pmd', version: versionPmd
-    testCompileOnly group: 'net.sourceforge.pmd', name: 'pmd', version: versionPmd
-
     // Reified-Generics
-    api group: 'ninja.javahacker', name: 'reified-generic', version: versionReifiedGenerics
+    api(group: "ninja.javahacker", name: "reified-generic", version: versionReifiedGenerics)
 
     // SpotBugs + plugins
-    spotbugs group: 'com.github.spotbugs', name: 'spotbugs', version: versionSpotBugs
-    spotbugs configurations.spotbugsPlugins.dependencies
-    api group: 'net.jcip', name: 'jcip-annotations', version: versionJcip
-    api group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: versionSpotBugs
-    spotbugsPlugins group: 'com.h3xstream.findsecbugs', name: 'findsecbugs-plugin', version: versionFindSecBugs
-    spotbugsPlugins group: 'com.mebigfatguy.sb-contrib', name: 'sb-contrib', version: versionSbContrib
+    spotbugs(group: "com.github.spotbugs", name: "spotbugs", version: versionSpotBugs)
+    spotbugs(configurations.spotbugsPlugins.dependencies)
+    api(group: "net.jcip", name: "jcip-annotations", version: versionJcip)
+    api(group: "com.github.spotbugs", name: "spotbugs-annotations", version: versionSpotBugs)
+    spotbugsPlugins(group: "com.h3xstream.findsecbugs", name: "findsecbugs-plugin", version: versionFindSecBugs)
+    spotbugsPlugins(group: "com.mebigfatguy.sb-contrib", name: "sb-contrib", version: versionSbContrib)
 }
 
-println "Using Java " + org.gradle.api.JavaVersion.current() + "."
+// Do not change anything below here.
+
+println("Using Java " + org.gradle.api.JavaVersion.current() + ".")
 
 repositories {
     flatDir {
-        dirs 'libs'
+        dirs("libs")
     }
     mavenLocal()
-    jcenter()
     mavenCentral()
 }
 
 tasks.withType(JavaCompile) {
-    sourceCompatibility = javaCompiler
-    targetCompatibility = javaCompiler
-    options.encoding = 'UTF-8'
+    def extraCompilerArgs = []
+    options.encoding = "UTF-8"
     options.debug = true
     options.fork = true
     options.compilerArgs << "-parameters" << "-Xlint:all,-processing"
-    extraCompilerArgs.each { e -> options.compilerArgs << e }
+    options.compilerArgs.addAll(extraCompilerArgs)
 }
 
 compileJava {
-    if (doclint) options.compilerArgs << "-Xdoclint:all/protected"
-    sourceSets {
-        main.java.srcDirs = ['src/main/java']
-        main.resources.srcDirs = ['src/main/resources']
+    sourceCompatibility = versionJavaCompiler
+    targetCompatibility = versionJavaCompiler
+    if (doclint) {
+        options.compilerArgs << "-Xdoclint:all/protected"
+    } else {
+        options.compilerArgs << "-Xdoclint:none"
+    }
+}
+
+compileTestJava {
+    sourceCompatibility = org.gradle.api.JavaVersion.current()
+    targetCompatibility = org.gradle.api.JavaVersion.current()
+    options.compilerArgs << "-Xdoclint:none"
+}
+
+configurations.compileOnly.setCanBeResolved(true)
+configurations.implementation.setCanBeResolved(true)
+task delombok {
+    description = "Delomboks the source code."
+    def delombokPath = "${configurations.compileOnly.asPath};${configurations.implementation.asPath}"
+    doLast {
+        ant.mkdir(dir: "build/src-delomboked")
+        ant.taskdef(name: "delombok", classname: "lombok.delombok.ant.Tasks\$Delombok", classpath: delombokPath)
+        ant.delombok(verbose: "true", encoding: "UTF-8", to: "build/src-delomboked", from: "src/main/java", classpath: delombokPath, modulepath: delombokPath)
     }
 }
 
 tasks.withType(Javadoc) {
+    dependsOn(delombok)
+    source = ["build/src-delomboked"]
     options.encoding = "UTF-8"
+    options.charSet = "UTF-8"
     options.docEncoding = "UTF-8"
-    options.addBooleanOption('html5', true)
+    options.docTitle = "${project.name} API"
+    options.windowTitle = "${project.name} API"
+    options.header = "<b>${project.name}</b>"
+    options.addBooleanOption("html5", true)
     options.tags = ["apiNote:a:API Note:", "implSpec:a:Implementation Requirements:", "implNote:a:Implementation Note:"]
 }
 
@@ -130,11 +143,17 @@ checkstyle {
     showViolations = true
 }
 
+pmd {
+    toolVersion = versionPmd
+    ignoreFailures = true
+}
+
 spotbugs {
     toolVersion = versionSpotBugs
     effort = "max"
     reportLevel = "low"
     omitVisitors = ["WeakExceptionMessaging", "OverlyPermissiveMethod"]
+    ignoreFailures = true
 }
 
 tasks.withType(com.github.spotbugs.snom.SpotBugsTask) {
@@ -144,10 +163,8 @@ tasks.withType(com.github.spotbugs.snom.SpotBugsTask) {
     }
 }
 
-spotbugsTest.enabled = false
-
 jar {
-    archiveBaseName = artifactBaseName
+    archiveBaseName = artifactName
     duplicatesStrategy = "exclude"
     inputs.property("moduleName", moduleName)
     manifest {
@@ -156,17 +173,19 @@ jar {
 }
 
 task sourcesJar(type: Jar) {
-    from sourceSets.main.allSource
-    classifier "sources"
+    from(sourceSets.main.allSource)
+    classifier = "sources"
 }
 
 task javadocJar(type: Jar) {
-    from javadoc
-    classifier "javadoc"
+    from(javadoc)
+    classifier = "javadoc"
 }
 
 test {
     useJUnitPlatform()
+    finalizedBy(jacocoTestReport)
+    ignoreFailures = true
 }
 
 jacoco {
@@ -174,25 +193,25 @@ jacoco {
 }
 
 jacocoTestReport {
+    dependsOn(test)
     reports {
-        xml.enabled false
-        csv.enabled false
-        html.destination file("${buildDir}/jacocoHtml")
+        xml.enabled = false
+        csv.enabled = false
     }
 }
 
 publishing {
     publications {
         mavenJava(MavenPublication) {
-            artifactId jar.baseName
-            from components.java
-            artifact sourcesJar
-            artifact javadocJar
+            artifactId = artifactName
+            from(components.java)
+            artifact(sourcesJar)
+            artifact(javadocJar)
             pom {
                 developers {
                     developer {
-                        name = 'Victor Williams Stafusa da Silva'
-                        email = 'victorwssilva@gmail.com'
+                        name = "Victor Williams Stafusa da Silva"
+                        email = "victorwssilva@gmail.com"
                     }
                 }
             }
@@ -202,3 +221,6 @@ publishing {
         mavenLocal()
     }
 }
+
+spotbugsTest.enabled = false
+pmdTest.enabled = false
