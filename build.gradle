@@ -10,7 +10,7 @@ plugins {
 
 description = "Mocker"
 group = "ninja.javahacker"
-version = "1.1.0-2021.05.17"
+version = "1.1.0-2021.05.26"
 
 def artifactName = "mocker"
 def moduleName = "ninja.javahacker.mocker"
@@ -28,7 +28,7 @@ def versionJunit = "5.8.0-M1"
 def versionJsr305 = "3.0.2"
 def versionLombok = "1.18.20"
 def versionPmd = "6.34.0"
-def versionReifiedGenerics = "1.1.0-2021.05.17"
+def versionReifiedGenerics = "1.1.0-2021.05.26"
 def versionSpotBugs = "4.2.3"
 
 dependencies {
@@ -42,12 +42,12 @@ dependencies {
     // Lombok
     if (versionLombok != "edge") {
         annotationProcessor(group: "org.projectlombok", name: "lombok", version: versionLombok)
-        compileOnly(group: "org.projectlombok", name: "lombok", version: versionLombok)
+        compileOnlyApi(group: "org.projectlombok", name: "lombok", version: versionLombok)
         testAnnotationProcessor(group: "org.projectlombok", name: "lombok", version: versionLombok)
         testCompileOnly(group: "org.projectlombok", name: "lombok", version: versionLombok)
     } else {
         annotationProcessor(files("libs/lombok-edge.jar"))
-        compileOnly(files("libs/lombok-edge.jar"))
+        compileOnlyApi(files("libs/lombok-edge.jar"))
         testAnnotationProcessor(files("libs/lombok-edge.jar"))
         testCompileOnly(files("libs/lombok-edge.jar"))
     }
@@ -58,8 +58,10 @@ dependencies {
     // SpotBugs + plugins
     spotbugs(group: "com.github.spotbugs", name: "spotbugs", version: versionSpotBugs)
     spotbugs(configurations.spotbugsPlugins.dependencies)
-    api(group: "net.jcip", name: "jcip-annotations", version: versionJcip)
-    api(group: "com.github.spotbugs", name: "spotbugs-annotations", version: versionSpotBugs)
+    compileOnlyApi(group: "net.jcip", name: "jcip-annotations", version: versionJcip)
+    compileOnlyApi(group: "com.github.spotbugs", name: "spotbugs-annotations", version: versionSpotBugs)
+    testCompileOnly(group: "net.jcip", name: "jcip-annotations", version: versionJcip)
+    testCompileOnly(group: "com.github.spotbugs", name: "spotbugs-annotations", version: versionSpotBugs)
     spotbugsPlugins(group: "com.h3xstream.findsecbugs", name: "findsecbugs-plugin", version: versionFindSecBugs)
     spotbugsPlugins(group: "com.mebigfatguy.sb-contrib", name: "sb-contrib", version: versionSbContrib)
 }
@@ -76,12 +78,17 @@ repositories {
     mavenCentral()
 }
 
+configurations.compileOnlyApi.setCanBeResolved(true)
+configurations.implementation.setCanBeResolved(true)
+configurations.testCompileOnly.setCanBeResolved(true)
+configurations.testImplementation.setCanBeResolved(true)
+
 tasks.withType(JavaCompile) {
     def extraCompilerArgs = []
     options.encoding = "UTF-8"
     options.debug = true
     options.fork = true
-    options.compilerArgs << "-parameters" << "-Xlint:all,-processing"
+    options.compilerArgs << "-parameters" << "-Xlint:all,-processing,-requires-transitive-automatic,-requires-automatic,-missing-explicit-ctor"
     options.compilerArgs.addAll(extraCompilerArgs)
 }
 
@@ -93,23 +100,37 @@ compileJava {
     } else {
         options.compilerArgs << "-Xdoclint:none"
     }
+    doFirst {
+        //println("\nClasspath + Modulepath compileOnlyApi:;${configurations.compileOnlyApi.asPath}".replaceAll(";+", ";").replace(";", "\n   "))
+        //println("\nClasspath + Modulepath implementation:;${configurations.implementation.asPath}".replaceAll(";+", ";").replace(";", "\n   "))
+        options.compilerArgs += [
+            "--module-path", "${configurations.compileOnlyApi.asPath};${configurations.implementation.asPath}".replaceAll(";+", ";")
+        ]
+        classpath = files()
+    }
 }
 
 compileTestJava {
     sourceCompatibility = org.gradle.api.JavaVersion.current()
     targetCompatibility = org.gradle.api.JavaVersion.current()
     options.compilerArgs << "-Xdoclint:none"
+    /*doFirst {
+        println("\nClasspath + Modulepath testCompileOnly:;${configurations.testCompileOnly.asPath}\n".replaceAll(";+", ";").replace(";", "\n   "))
+        println("\nClasspath + Modulepath testImplementation:;${configurations.testImplementation.asPath}\n".replaceAll(";+", ";").replace(";", "\n   "))
+        options.compilerArgs += [
+            "--module-path", "${configurations.testCompileOnly.asPath};${configurations.testImplementation.asPath}".replaceAll(";+", ";")
+        ]
+        classpath = files()
+    }*/
 }
 
-configurations.compileOnly.setCanBeResolved(true)
-configurations.implementation.setCanBeResolved(true)
 task delombok {
     description = "Delomboks the source code."
-    def delombokPath = "${configurations.compileOnly.asPath};${configurations.implementation.asPath}"
+    def delombokPath = "${configurations.compileOnlyApi.asPath};${configurations.implementation.asPath}"
     doLast {
         ant.mkdir(dir: "build/src-delomboked")
         ant.taskdef(name: "delombok", classname: "lombok.delombok.ant.Tasks\$Delombok", classpath: delombokPath)
-        ant.delombok(verbose: "true", encoding: "UTF-8", to: "build/src-delomboked", from: "src/main/java", classpath: delombokPath, modulepath: delombokPath)
+        ant.delombok(verbose: "true", encoding: "UTF-8", to: "build/src-delomboked", from: "src/main/java", modulepath: delombokPath)
     }
 }
 
@@ -124,6 +145,10 @@ tasks.withType(Javadoc) {
     options.header = "<b>${project.name}</b>"
     options.addBooleanOption("html5", true)
     options.tags = ["apiNote:a:API Note:", "implSpec:a:Implementation Requirements:", "implNote:a:Implementation Note:"]
+    doFirst {
+        options.modulePath += classpath
+        classpath = files()
+    }
 }
 
 checkstyleMain {

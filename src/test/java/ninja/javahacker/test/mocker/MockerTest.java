@@ -5,11 +5,8 @@ import java.util.Set;
 import java.util.function.Predicate;
 import ninja.javahacker.mocker.Mocker;
 import ninja.javahacker.mocker.UnconfiguredMethodException;
-import ninja.javahacker.reifiedgeneric.ReifiedGeneric;
-import ninja.javahacker.reifiedgeneric.Token;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.function.Executable;
 
 /**
  * @author Victor Williams Stafusa da Silva
