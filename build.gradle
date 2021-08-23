@@ -183,8 +183,8 @@ spotbugs {
 
 tasks.withType(com.github.spotbugs.snom.SpotBugsTask) {
     reports {
-        xml.enabled = false
-        html.enabled = true
+        xml.required = false
+        html.required = true
     }
 }
 
@@ -220,8 +220,8 @@ jacoco {
 jacocoTestReport {
     dependsOn(test)
     reports {
-        xml.enabled = false
-        csv.enabled = false
+        xml.required = false
+        csv.required = false
     }
 }
 
