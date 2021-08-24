@@ -28,7 +28,7 @@ def versionJunit = "5.8.0-M1"
 def versionJsr305 = "3.0.2"
 def versionLombok = "1.18.20"
 def versionPmd = "6.34.0"
-def versionReifiedGenerics = "1.1.0-2021.05.26"
+def versionReifiedGenerics = "1.1.0-2021.08.24"
 def versionSpotBugs = "4.2.3"
 
 dependencies {
@@ -84,12 +84,10 @@ configurations.testCompileOnly.setCanBeResolved(true)
 configurations.testImplementation.setCanBeResolved(true)
 
 tasks.withType(JavaCompile) {
-    def extraCompilerArgs = []
     options.encoding = "UTF-8"
     options.debug = true
     options.fork = true
     options.compilerArgs << "-parameters" << "-Xlint:all,-processing,-requires-transitive-automatic,-requires-automatic,-missing-explicit-ctor"
-    options.compilerArgs.addAll(extraCompilerArgs)
 }
 
 compileJava {
@@ -130,7 +128,7 @@ task delombok {
     doLast {
         ant.mkdir(dir: "build/src-delomboked")
         ant.taskdef(name: "delombok", classname: "lombok.delombok.ant.Tasks\$Delombok", classpath: delombokPath)
-        ant.delombok(verbose: "true", encoding: "UTF-8", to: "build/src-delomboked", from: "src/main/java", modulepath: delombokPath)
+        ant.delombok(verbose: "false", encoding: "UTF-8", to: "build/src-delomboked", from: "src/main/java", modulepath: delombokPath)
     }
 }
 
