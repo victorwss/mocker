@@ -646,10 +646,11 @@ public class Mocker<A> {
          * @param arguments The real parameters of the method.
          * @throws IllegalArgumentException If any parameter is {@code null}.
          */
+        @SuppressFBWarnings("EI_EXPOSE_REP2") // SpotBugs didn't liked the method field.
         public Call(@NonNull A instance, @NonNull Method method, @NonNull List<?> arguments) {
             this.instance = instance;
             this.method = method;
-            this.arguments = arguments;
+            this.arguments = Collections.unmodifiableList(arguments);
         }
 
         /**

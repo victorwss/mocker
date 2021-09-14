@@ -1,5 +1,6 @@
 package ninja.javahacker.mocker;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -12,6 +13,7 @@ import lombok.NonNull;
  *
  * @author Victor Williams Stafusa da Silva
  */
+@SuppressFBWarnings({"EI_EXPOSE_REP", "EI_EXPOSE_REP2"}) // SpotBugs does not like the called field.
 public final class UnconfiguredMethodException extends RuntimeException {
 
     /**
