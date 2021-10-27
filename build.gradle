@@ -10,26 +10,26 @@ plugins {
 
 description = "Mocker"
 group = "ninja.javahacker"
-version = "1.1.0-2021.09.20"
+version = "1.1.0-2021.10.27"
 
-def artifactName = "mocker"
-def moduleName = "ninja.javahacker.mocker"
+var artifactName = "mocker"
+var moduleName = "ninja.javahacker.mocker"
 
-def versionJavaCompiler = "10"
-def doclint = true
+var versionJavaCompiler = "10"
+var doclint = true
 
-def versionApiguardian = "1.1.1"
-def versionCheckstyle = "9.0"
-def versionSbContrib = "7.4.7"
-def versionFindSecBugs = "1.11.0"
-def versionJaCoCo = "0.8.7"
-def versionJcip = "1.0"
-def versionJunit = "5.8.0"
-def versionLombok = "edge-SNAPSHOT"  // "1.18.22"
-def versionPmd = "6.38.0"
-def versionReifiedGenerics = "1.1.0-2021.09.20"
-def versionSpotBugs = "4.4.1"
-def versionSlf4j = "1.8.0-beta4"     //"2.0.0-alpha5"
+var versionApiguardian = "1.1.1"
+var versionCheckstyle = "9.0.1"
+var versionSbContrib = "7.4.7"
+var versionFindSecBugs = "1.11.0"
+var versionJaCoCo = "0.8.7"
+var versionJcip = "1.0"
+var versionJunit = "5.8.0"
+var versionLombok = "1.18.22"
+var versionPmd = "6.38.0"
+var versionReifiedGenerics = "1.1.0-2021.10.27"
+var versionSpotBugs = "4.4.1"
+var versionSlf4j = "2.0.0-alpha5"
 
 dependencies {
 
@@ -71,8 +71,10 @@ repositories {
     }
     mavenLocal()
     mavenCentral()
-    maven {
-        url("https://projectlombok.org/edge-releases")
+    if (versionLombok.indexOf("edge") >= 0) {
+        maven {
+            url("https://projectlombok.org/edge-releases")
+        }
     }
 }
 
@@ -85,7 +87,14 @@ tasks.withType(JavaCompile) {
     options.encoding = "UTF-8"
     options.debug = true
     options.fork = true
-    options.compilerArgs << "-parameters" << "-Xlint:all,-processing,-requires-transitive-automatic,-requires-automatic,-missing-explicit-ctor" << "-Xmaxwarns" << "1000" << "-Xmaxerrs" << "1000"
+    options.compilerArgs += [
+        "-parameters",
+        "-Xlint:all,-processing,-requires-transitive-automatic,-requires-automatic,-missing-explicit-ctor",
+        "-Xmaxwarns",
+        "1000",
+        "-Xmaxerrs",
+        "1000"
+    ]
 }
 
 compileJava {
@@ -97,10 +106,8 @@ compileJava {
         options.compilerArgs << "-Xdoclint:none"
     }
     doFirst {
-        //println("\nClasspath + Modulepath compileOnlyApi:;${configurations.compileOnlyApi.asPath}".replaceAll(";+", ";").replace(";", "\n   "))
-        //println("\nClasspath + Modulepath implementation:;${configurations.implementation.asPath}".replaceAll(";+", ";").replace(";", "\n   "))
         options.compilerArgs += [
-            "--module-path", "${configurations.compileOnlyApi.asPath};${configurations.implementation.asPath}".replaceAll(";+", ";")
+            "--module-path", classpath.asPath
         ]
         classpath = files()
     }
@@ -110,19 +117,11 @@ compileTestJava {
     sourceCompatibility = org.gradle.api.JavaVersion.current()
     targetCompatibility = org.gradle.api.JavaVersion.current()
     options.compilerArgs << "-Xdoclint:none"
-    /*doFirst {
-        println("\nClasspath + Modulepath testCompileOnly:;${configurations.testCompileOnly.asPath}\n".replaceAll(";+", ";").replace(";", "\n   "))
-        println("\nClasspath + Modulepath testImplementation:;${configurations.testImplementation.asPath}\n".replaceAll(";+", ";").replace(";", "\n   "))
-        options.compilerArgs += [
-            "--module-path", "${configurations.testCompileOnly.asPath};${configurations.testImplementation.asPath}".replaceAll(";+", ";")
-        ]
-        classpath = files()
-    }*/
 }
 
 task delombok {
     description = "Delomboks the source code."
-    def delombokPath = "${configurations.compileOnlyApi.asPath};${configurations.implementation.asPath}"
+    var delombokPath = "${configurations.compileOnlyApi.asPath};${configurations.implementation.asPath}"
     doLast {
         ant.mkdir(dir: "build/src-delomboked")
         ant.taskdef(name: "delombok", classname: "lombok.delombok.ant.Tasks\$Delombok", classpath: delombokPath)
