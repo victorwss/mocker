@@ -5,12 +5,12 @@ buildscript {
         }
     }
     dependencies {
-        classpath("com.github.spotbugs.snom:spotbugs-gradle-plugin:5.0.5")
+        classpath("com.github.spotbugs.snom:spotbugs-gradle-plugin:5.0.12")
     }
 }
 
 plugins {
-    id("com.github.spotbugs") version "5.0.5"
+    id("com.github.spotbugs") version "5.0.12"
     id "java-library"
     id "maven-publish"
     id "checkstyle"
@@ -21,7 +21,7 @@ plugins {
 
 description = "Mocker"
 group = "ninja.javahacker"
-version = "1.1.0-2022.02.01"
+version = "1.1.0-2022.09.20"
 
 var artifactName = "mocker"
 var moduleName = "ninja.javahacker.mocker"
@@ -29,18 +29,18 @@ var moduleName = "ninja.javahacker.mocker"
 var versionJavaCompiler = "10"
 var doclint = true
 
-var versionApiguardian = "1.1.1"
-var versionCheckstyle = "9.3"
+var versionApiguardian = "1.1.2"
+var versionCheckstyle = "10.3.3"
 var versionSbContrib = "7.4.7"
-var versionFindSecBugs = "1.11.0"
-var versionJaCoCo = "0.8.7"
+var versionFindSecBugs = "1.12.0"
+var versionJaCoCo = "0.8.8"
 var versionJcip = "1.0"
-var versionJunit = "5.8.2"
-var versionLombok = "1.18.22"
-var versionPmd = "6.42.0"
-var versionReifiedGenerics = "1.1.0-2022.02.01"
-var versionSpotBugs = "4.5.3"
-var versionSlf4j = "2.0.0-alpha6"
+var versionJunit = "5.9.0"
+var versionLombok = "1.18.24"
+var versionPmd = "6.49.0"
+var versionReifiedGenerics = "1.1.0-2022.09.20"
+var versionSpotBugs = "4.7.2"
+var versionSlf4j = "2.0.1"
 
 dependencies {
 
