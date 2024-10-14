@@ -81,15 +81,15 @@ public class Mocker<A> {
     Class<A> type;
 
     /**
-     * The rules defined for the behaviour of the mock instance.
+     * The rules defined for the behavior of the mock instance.
      */
     @NonNull
     Map<String, Rule<A, ?>> actions;
 
     /**
-     * Represents a rule encapsulating a behaviour to be performed sometime by the mock.
+     * Represents a rule encapsulating a behavior to be performed sometime by the mock.
      * @param <A> The type implemented by the mock.
-     * @param <R> The return type of the encapsulated behaviour.
+     * @param <R> The return type of the encapsulated behavior.
      */
     @Data
     @AllArgsConstructor
@@ -100,9 +100,10 @@ public class Mocker<A> {
          * If this rule is enabled or not.
          * -- GETTER --
          * Determines if the rule is enabled or not.
-         * @return Wheter the rule is enabled or not.
+         * @return Whether the rule is enabled or not.
          */
-        @NonFinal boolean enabled;
+        @NonFinal
+        boolean enabled;
 
         /**
          * The test that checks if this rule can be triggered.
@@ -110,15 +111,17 @@ public class Mocker<A> {
          * Obtains the test that checks if this rule can be triggered.
          * @return The test that checks if this rule can be triggered.
          */
-        @NonNull Predicate<Call<A>> test;
+        @NonNull
+        Predicate<Call<A>> test;
 
         /**
-         * The behaviour of this rule.
+         * The behavior of this rule.
          * -- GETTER --
-         * Obtains the behaviour of this rule.
-         * @return The behaviour of this rule.
+         * Obtains the behavior of this rule.
+         * @return The behavior of this rule.
          */
-        @NonNull Action<A, R> action;
+        @NonNull
+        Action<A, R> action;
     }
 
     /**
@@ -130,7 +133,7 @@ public class Mocker<A> {
         if (!type.isInterface()) throw new IllegalArgumentException();
 
         this.type = type;
-        this.actions = new LinkedHashMap<>();
+        this.actions = new LinkedHashMap<>(25);
 
         var ccl = Thread.currentThread().getContextClassLoader();
         this.target = type.cast(Proxy.newProxyInstance(ccl, new Class<?>[] {type}, this::invoke));
@@ -141,15 +144,15 @@ public class Mocker<A> {
      * @param instance The instance of the mock. It's actually unused.
      * @param m The called method.
      * @param args The arguments used to call the method.
-     * @return Whathever is returned by the method or {@code null} if it is a {@code void}-typed method.
+     * @return Whatever is returned by the method or {@code null} if it is a {@code void}-typed method.
      * @throws Throwable If the called method raises any exception.
-     * @throws UnconfiguredMethodException If there are no rules governing what should be the behaviour of the
+     * @throws UnconfiguredMethodException If there are no rules governing what should be the behavior of the
      *     performed call.
      */
     @Nullable
     @Synchronized
     @SuppressFBWarnings("UP_UNUSED_PARAMETER")
-    private Object invoke(Object instance, Method m, Object[] args) throws Throwable {
+    private Object invoke(Object instance, @NonNull Method m, Object[] args) throws Throwable {
         if (args == null) args = new Object[0];
         var call = new Call<>(target, m, List.of(args));
         for (var e : actions.values()) {
@@ -220,11 +223,11 @@ public class Mocker<A> {
     }
 
     /**
-     * Adds a named rule to the behaviour of the mock object.
+     * Adds a named rule to the behavior of the mock object.
      * @param <R> The return type of the method for which the rule produces some result.
      * @param name The name of the rule.
      * @param test A condition that must be satisfied in order to allow the rule to be triggered.
-     * @param action The actual behaviour of the rule.
+     * @param action The actual behavior of the rule.
      * @throws IllegalArgumentException If any of the parameters is {@code null}.
      */
     @Synchronized
@@ -235,7 +238,7 @@ public class Mocker<A> {
     }
 
     /**
-     * Obtains a rule for the behaviour of this mock object, given its name.
+     * Obtains a rule for the behavior of this mock object, given its name.
      * @param name The name of the rule to be retrieved.
      * @return The retrieved rule.
      * @throws IllegalArgumentException If {@code name} is {@code null} or there is no rule of the given name.
@@ -370,7 +373,7 @@ public class Mocker<A> {
     }
 
     /**
-     * A builder object for defining the behaviour of some still unspecified method.
+     * A builder object for defining the behavior of some still unspecified method.
      * @param <A> The type implemented by the mock.
      */
     @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -388,7 +391,7 @@ public class Mocker<A> {
         @NonNull String rule;
 
         private Predicate<Call<A>> chooseMethod(Consumer<A> doIt) {
-            Method[] choosen = new Method[1];
+            var choosen = new Method[1];
             InvocationHandler ih = (p, m, args) -> {
                 if (choosen[0] != null) {
                     throw new IllegalArgumentException("Don't call more than one method in the given object!");
@@ -405,7 +408,7 @@ public class Mocker<A> {
         }
 
         private Predicate<Call<A>> chooseMethods(Consumer<A> doIt) {
-            Set<Method> choosens = new LinkedHashSet<Method>();
+            Set<Method> choosens = new LinkedHashSet<>();
             InvocationHandler ih = (p, m, args) -> {
                 choosens.add(m);
                 return defaultReturnFor(m);
@@ -419,8 +422,8 @@ public class Mocker<A> {
         }
 
         /**
-         * Starts the configuration of the behaviour of some non-{@code void} method of the mock.
-         * <p>The returned object should be used for further behaviour definitions and refinements.</p>
+         * Starts the configuration of the behavior of some non-{@code void} method of the mock.
+         * <p>The returned object should be used for further behavior definitions and refinements.</p>
          * <p>This should be used for methods that returns something. For methods that declares {@code void} as
          * the return type, use the {@link #procedure(Consumer)} method instead.</p>
          *
@@ -428,7 +431,7 @@ public class Mocker<A> {
          * @param what Ideally, a method reference of one of the methods of the interface to be mocked.
          *     A lambda which does a dummy call to the method is also acceptable (the actual values of the parameters are unused) and
          *     a zero, {@code null} or {@code false} will be returned accordingly to the return type of the method.
-         * @return A more detailed builder object for further refining the behaviour of the given method.
+         * @return A more detailed builder object for further refining the behavior of the given method.
          * @throws IllegalArgumentException If the given lambda ({@code what}) is {@code null} or it doesn't call any method of
          *     the given object or call methods multiple times or if it was a method reference which has nothing to do with the
          *     mock instance.
@@ -440,14 +443,14 @@ public class Mocker<A> {
         }
 
         /**
-         * Starts the configuration of the behaviour of some {@code void}-typed method of the mock.
-         * <p>The returned object should be used for further behaviour definitions and refinements.</p>
+         * Starts the configuration of the behavior of some {@code void}-typed method of the mock.
+         * <p>The returned object should be used for further behavior definitions and refinements.</p>
          * <p>This should be used for methods that declares {@code void} as the return type.</p>
          * For methods that declares something else as the the return type, use the {@link #function(Function)} method instead.
          *
          * @param what Ideally, a method reference of one of the methods of the interface to be mocked.
          *     A lambda which does a dummy call to the method is also acceptable (the actual values of the parameters are unused).
-         * @return A more detailed builder object for further refining the behaviour of the given method.
+         * @return A more detailed builder object for further refining the behavior of the given method.
          * @throws IllegalArgumentException If the given lambda ({@code what}) is {@code null} or it doesn't call any method of
          *     the given object or call methods multiple times or if it was a method reference which has nothing to do with the
          *     mock instance.
@@ -459,12 +462,12 @@ public class Mocker<A> {
         }
 
         /**
-         * Starts the configuration of the behaviour for some methods of the mock.
-         * <p>The returned object should be used for further behaviour definitions and refinements.</p>
+         * Starts the configuration of the behavior for some methods of the mock.
+         * <p>The returned object should be used for further behavior definitions and refinements.</p>
          * @param what A closure that calls several methods of the interface to be mocked.
          *     The actual values of the parameters are unused. All of the non-{@code void} calls returns zero,
          *     {@code null} or {@code false}, accordingly to the return type of the methods.
-         * @return A more detailed builder object for further refining the behaviour of the methods.
+         * @return A more detailed builder object for further refining the behavior of the methods.
          * @throws IllegalArgumentException If the given lambda ({@code what}) is {@code null} or it doesn't call any method of
          *     the given object or if it was a method reference which has nothing to do with the mock instance.
          */
@@ -473,9 +476,9 @@ public class Mocker<A> {
         }
 
         /**
-         * Starts the configuration of the behaviour for every method of the mock.
-         * <p>The returned object should be used for further behaviour definitions and refinements.</p>
-         * @return A more detailed builder object for further refining the behaviour of the methods.
+         * Starts the configuration of the behavior for every method of the mock.
+         * <p>The returned object should be used for further behavior definitions and refinements.</p>
+         * @return A more detailed builder object for further refining the behavior of the methods.
          */
         public Receiver<A, Object> anyMethod() {
             return new Receiver<>(owner, rule, c -> true);
@@ -483,9 +486,9 @@ public class Mocker<A> {
     }
 
     /**
-     * A builder object for defining the behaviour of some specific non-{@code void} method.
+     * A builder object for defining the behavior of some specific non-{@code void} method.
      * @param <A> The type implemented by the mock.
-     * @param <R> The return type of the method for which the behaviour will be defined.
+     * @param <R> The return type of the method for which the behavior will be defined.
      */
     @AllArgsConstructor(access = AccessLevel.PRIVATE)
     @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -507,10 +510,10 @@ public class Mocker<A> {
         @NonNull Predicate<Call<A>> condition;
 
         /**
-         * Defines a condition that must be true in order to trigger this behaviour.
+         * Defines a condition that must be true in order to trigger this behavior.
          * <p>Note that as the condition is a {@link Predicate} receiving the data used to call the method,
          * this is ideal for cases where that data (specially the parameters of the method) determines at least
-         * in part what is the behaviour of the method.</p>
+         * in part what is the behavior of the method.</p>
          * @param cond The condition.
          * @return Another builder object to be used for further definitions.
          * @throws IllegalArgumentException If the supplied parameter is {@code null}.
@@ -521,7 +524,7 @@ public class Mocker<A> {
         }
 
         /**
-         * Defines a condition that must be true in order to trigger this behaviour.
+         * Defines a condition that must be true in order to trigger this behavior.
          * <p>Note that as the condition is a {@link BooleanSupplier}, this is ideal for cases where
          * the condition has nothing to do with any data determined by the performed call
          * (like the parameters or the given instance).</p>
@@ -536,16 +539,16 @@ public class Mocker<A> {
 
         /**
          * Defines what the method does afterall.
-         * @param behaviour The behaviour of the method.
+         * @param behavior The behavior of the method.
          * @throws IllegalArgumentException If the supplied parameter is {@code null}.
          */
-        public void executes(@NonNull Action<A, R> behaviour) {
-            owner.put(rule, condition, behaviour);
+        public void executes(@NonNull Action<A, R> behavior) {
+            owner.put(rule, condition, behavior);
         }
     }
 
     /**
-     * A builder object for defining the behaviour of some specific {@code void}-returning method.
+     * A builder object for defining the behavior of some specific {@code void}-returning method.
      * @param <A> The type implemented by the mock.
      */
     @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -568,10 +571,10 @@ public class Mocker<A> {
         @NonNull Predicate<Call<A>> condition;
 
         /**
-         * Defines a condition that must be true in order to trigger this behaviour.
+         * Defines a condition that must be true in order to trigger this behavior.
          * <p>Note that as the condition is a {@link Predicate} receiving the data used to call the method,
          * this is ideal for cases where that data (specially the parameters of the method) represents a context
-         * that governs the behaviour of the method.</p>
+         * that governs the behavior of the method.</p>
          * @param cond The condition.
          * @return Another builder object to be used for further definitions.
          * @throws IllegalArgumentException If the supplied parameter is {@code null}.
@@ -582,7 +585,7 @@ public class Mocker<A> {
         }
 
         /**
-         * Defines a condition that must be true in order to trigger this behaviour.
+         * Defines a condition that must be true in order to trigger this behavior.
          * <p>Note that as the condition is a {@link BooleanSupplier}, this is ideal for cases where
          * the condition has nothing to do with any data determined by the performed call
          * (like the parameters or the given instance).</p>
@@ -597,11 +600,11 @@ public class Mocker<A> {
 
         /**
          * Defines what the method does afterall.
-         * @param behaviour The behaviour of the method.
+         * @param behavior The behavior of the method.
          * @throws IllegalArgumentException If the supplied parameter is {@code null}.
          */
-        public void executes(@NonNull VoidAction<A> behaviour) {
-            owner.put(rule, condition, behaviour);
+        public void executes(@NonNull VoidAction<A> behavior) {
+            owner.put(rule, condition, behavior);
         }
     }
 
@@ -677,7 +680,7 @@ public class Mocker<A> {
     }
 
     /**
-     * Represents the behaviour of the call of some mock method.
+     * Represents the behavior of the call of some mock method.
      * @param <A> The type of the mock instance where the call is performed.
      * @param <R> The return type of the called method.
      */
@@ -685,7 +688,7 @@ public class Mocker<A> {
     public static interface Action<A, R> {
 
         /**
-         * Executes the call. The instance of {@code this} object contains the behaviour of the call.
+         * Executes the call. The instance of {@code this} object contains the behavior of the call.
          * @param call A command representing a call to some method.
          * @return The result of the call.
          * @throws Throwable If the method call throws an exception, it will be rethrown.
@@ -694,14 +697,14 @@ public class Mocker<A> {
     }
 
     /**
-     * Represents the behaviour of the call of some mock method which declares {@code void} as the return type.
+     * Represents the behavior of the call of some mock method which declares {@code void} as the return type.
      * @param <A> The type of the mock instance where the call is performed.
      */
     @FunctionalInterface
     public static interface VoidAction<A> extends Action<A, Void> {
 
         /**
-         * Executes the call. The instance of {@code this} object contains the behaviour of the call.
+         * Executes the call. The instance of {@code this} object contains the behavior of the call.
          * <p>This implementations just forwards to the {@link #run(Call) method}, which is more convenient for overriding.</p>
          * @param call A command representing a call to some method.
          * @return The result of the call.
@@ -714,7 +717,7 @@ public class Mocker<A> {
         }
 
         /**
-         * Executes the call. The instance of {@code this} object contains the behaviour of the call.
+         * Executes the call. The instance of {@code this} object contains the behavior of the call.
          * @param call A command representing a call to some {@code void}-typed method.
          * @throws Throwable If the method call throws an exception, it will be rethrown.
          */

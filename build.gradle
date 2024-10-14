@@ -1,16 +1,17 @@
 plugins {
-    id("com.github.spotbugs") version "4.7.5"
-    id "java-library"
-    id "maven-publish"
-    id "checkstyle"
-    id "signing"
-    id "jacoco"
-    id "pmd"
+    id("com.github.spotbugs") version "6.0.22"
+    id("java-library")
+    id("maven-publish")
+    id("checkstyle")
+    id("signing")
+    id("jacoco")
+    id("pmd")
+    id("project-report")
 }
 
 description = "Mocker"
 group = "ninja.javahacker"
-version = "1.1.0-2021.09.20"
+version = "1.1.0-2024.10.13"
 
 def artifactName = "mocker"
 def moduleName = "ninja.javahacker.mocker"
@@ -18,50 +19,52 @@ def moduleName = "ninja.javahacker.mocker"
 def versionJavaCompiler = "10"
 def doclint = true
 
-def versionApiguardian = "1.1.1"
-def versionCheckstyle = "9.0"
-def versionSbContrib = "7.4.7"
-def versionFindSecBugs = "1.11.0"
-def versionJaCoCo = "0.8.7"
-def versionJcip = "1.0"
-def versionJunit = "5.8.0"
-def versionLombok = "edge-SNAPSHOT"  // "1.18.22"
-def versionPmd = "6.38.0"
-def versionReifiedGenerics = "1.1.0-2021.09.20"
-def versionSpotBugs = "4.4.1"
-def versionSlf4j = "1.8.0-beta4"     //"2.0.0-alpha5"
+def versionApiguardian = "1.1.2"
+def versionAsm         = "9.7"
+def versionCheckstyle  = "10.18.2"
+def versionSbContrib   = "7.6.5"
+def versionFindSecBugs = "1.13.0"
+def versionJaCoCo      = "0.8.12"
+def versionJcip        = "1.0-1"
+def versionJunit       = "5.11.2"
+def versionJunitPlatf  = "1.11.2"
+def versionLombok      = "1.18.34"
+def versionPmd         = "7.6.0"
+def versionSpotBugs    = "4.8.6"
+def versionSlf4j       = "2.0.16"
+
+def versionReifiedGenerics = version
 
 dependencies {
 
     // JUnit
+    testImplementation(group: "org.junit.platform", name: "junit-platform-launcher", version: versionJunitPlatf)
     testImplementation(group: "org.junit.jupiter", name: "junit-jupiter-api", version: versionJunit)
-    testRuntimeOnly(group: "org.junit.jupiter", name: "junit-jupiter-engine", version: versionJunit)
-    testRuntimeOnly(group: "org.junit.jupiter", name: "junit-jupiter-params", version: versionJunit)
-    testCompileOnly(group: "org.apiguardian", name: "apiguardian-api", version: versionApiguardian)
+    testImplementation(group: "org.junit.jupiter", name: "junit-jupiter-params", version: versionJunit)
+    testImplementation(group: "org.junit.jupiter", name: "junit-jupiter-engine", version: versionJunit)
+    testImplementation(group: "org.apiguardian", name: "apiguardian-api", version: versionApiguardian)
 
     // Lombok
-    annotationProcessor(group: "org.projectlombok", name: "lombok", version: versionLombok)
-    compileOnlyApi(group: "org.projectlombok", name: "lombok", version: versionLombok)
+    annotationProcessor    (group: "org.projectlombok", name: "lombok", version: versionLombok)
+    compileOnlyApi         (group: "org.projectlombok", name: "lombok", version: versionLombok)
     testAnnotationProcessor(group: "org.projectlombok", name: "lombok", version: versionLombok)
-    testCompileOnly(group: "org.projectlombok", name: "lombok", version: versionLombok)
+    testCompileOnly        (group: "org.projectlombok", name: "lombok", version: versionLombok)
 
     // Reified-Generics
     api(group: "ninja.javahacker", name: "reified-generic", version: versionReifiedGenerics)
 
-    // SpotBugs + plugins
+    // SpotBugs + plugins + dependencies
     spotbugs(group: "com.github.spotbugs", name: "spotbugs", version: versionSpotBugs)
-    spotbugs(group: "org.slf4j", name: "slf4j-api", version: versionSlf4j)
+    spotbugs(group: "org.slf4j", name: "slf4j-api"   , version: versionSlf4j)
     spotbugs(group: "org.slf4j", name: "slf4j-simple", version: versionSlf4j)
+    spotbugs(group: "org.ow2.asm", name: "asm", version: versionAsm)
     spotbugs(configurations.spotbugsPlugins.dependencies)
-    compileOnlyApi(group: "net.jcip", name: "jcip-annotations", version: versionJcip)
+    spotbugs(configurations.apiElements.dependencies)
+    compileOnlyApi(group: "com.github.stephenc.jcip", name: "jcip-annotations", version: versionJcip)
     compileOnlyApi(group: "com.github.spotbugs", name: "spotbugs-annotations", version: versionSpotBugs)
-    testCompileOnly(group: "net.jcip", name: "jcip-annotations", version: versionJcip)
-    testCompileOnly(group: "com.github.spotbugs", name: "spotbugs-annotations", version: versionSpotBugs)
     spotbugsPlugins(group: "com.h3xstream.findsecbugs", name: "findsecbugs-plugin", version: versionFindSecBugs)
     spotbugsPlugins(group: "com.mebigfatguy.sb-contrib", name: "sb-contrib", version: versionSbContrib)
 }
-
-// Do not change anything below here.
 
 println("Using Java " + org.gradle.api.JavaVersion.current() + ".")
 
@@ -71,21 +74,23 @@ repositories {
     }
     mavenLocal()
     mavenCentral()
-    maven {
-        url("https://projectlombok.org/edge-releases")
-    }
+    gradlePluginPortal()
 }
-
-configurations.compileOnlyApi.setCanBeResolved(true)
-configurations.implementation.setCanBeResolved(true)
-configurations.testCompileOnly.setCanBeResolved(true)
-configurations.testImplementation.setCanBeResolved(true)
 
 tasks.withType(JavaCompile) {
     options.encoding = "UTF-8"
     options.debug = true
     options.fork = true
-    options.compilerArgs << "-parameters" << "-Xlint:all,-processing,-requires-transitive-automatic,-requires-automatic,-missing-explicit-ctor" << "-Xmaxwarns" << "1000" << "-Xmaxerrs" << "1000"
+    options.compilerArgs << "-parameters"
+    options.compilerArgs << "-Xlint:all,-processing,-requires-transitive-automatic,-requires-automatic,-missing-explicit-ctor"
+    options.compilerArgs << "-Xmaxwarns" << "1000"
+    options.compilerArgs << "-Xmaxerrs" << "1000"
+    doFirst {
+        options.compilerArgs += [
+            "--module-path", classpath.asPath
+        ]
+        classpath = files()
+    }
 }
 
 compileJava {
@@ -96,34 +101,24 @@ compileJava {
     } else {
         options.compilerArgs << "-Xdoclint:none"
     }
-    doFirst {
-        //println("\nClasspath + Modulepath compileOnlyApi:;${configurations.compileOnlyApi.asPath}".replaceAll(";+", ";").replace(";", "\n   "))
-        //println("\nClasspath + Modulepath implementation:;${configurations.implementation.asPath}".replaceAll(";+", ";").replace(";", "\n   "))
-        options.compilerArgs += [
-            "--module-path", "${configurations.compileOnlyApi.asPath};${configurations.implementation.asPath}".replaceAll(";+", ";")
-        ]
-        classpath = files()
-    }
 }
 
 compileTestJava {
     sourceCompatibility = org.gradle.api.JavaVersion.current()
     targetCompatibility = org.gradle.api.JavaVersion.current()
     options.compilerArgs << "-Xdoclint:none"
-    /*doFirst {
-        println("\nClasspath + Modulepath testCompileOnly:;${configurations.testCompileOnly.asPath}\n".replaceAll(";+", ";").replace(";", "\n   "))
-        println("\nClasspath + Modulepath testImplementation:;${configurations.testImplementation.asPath}\n".replaceAll(";+", ";").replace(";", "\n   "))
-        options.compilerArgs += [
-            "--module-path", "${configurations.testCompileOnly.asPath};${configurations.testImplementation.asPath}".replaceAll(";+", ";")
-        ]
-        classpath = files()
-    }*/
 }
 
 task delombok {
     description = "Delomboks the source code."
-    def delombokPath = "${configurations.compileOnlyApi.asPath};${configurations.implementation.asPath}"
     doLast {
+        configurations {
+            delombokAll {
+                extendsFrom(compileClasspath)
+                canBeResolved = true
+            }
+        }
+        def delombokPath = "${configurations.delombokAll.asPath};"
         ant.mkdir(dir: "build/src-delomboked")
         ant.taskdef(name: "delombok", classname: "lombok.delombok.ant.Tasks\$Delombok", classpath: delombokPath)
         ant.delombok(verbose: "false", encoding: "UTF-8", to: "build/src-delomboked", from: "src/main/java", modulepath: delombokPath)
@@ -142,7 +137,7 @@ tasks.withType(Javadoc) {
     options.addBooleanOption("html5", true)
     options.tags = ["apiNote:a:API Note:", "implSpec:a:Implementation Requirements:", "implNote:a:Implementation Note:"]
     if (doclint) {
-        //options.addBooleanOption("Xdoclint:all/protected", true)
+        options.addBooleanOption("Xdoclint:all/protected", true)
     } else {
         options.addBooleanOption("Xdoclint:none", true)
     }
@@ -167,7 +162,7 @@ checkstyle {
     configProperties = [
         "checkstyle.cache.file": "${buildDir}/checkstyle.cache",
     ]
-    ignoreFailures = true
+    ignoreFailures = false
     showViolations = true
 }
 
@@ -178,8 +173,8 @@ pmd {
 
 spotbugs {
     toolVersion = versionSpotBugs
-    effort = "max"
-    reportLevel = "low"
+    effort = com.github.spotbugs.snom.Effort.MAX
+    reportLevel = com.github.spotbugs.snom.Confidence.valueOf("LOW")
     omitVisitors = ["WeakExceptionMessaging", "OverlyPermissiveMethod"]
     ignoreFailures = true
 }
@@ -202,18 +197,20 @@ jar {
 
 task sourcesJar(type: Jar) {
     from(sourceSets.main.allSource)
-    classifier = "sources"
+    archiveClassifier = "sources"
 }
 
 task javadocJar(type: Jar) {
     from(javadoc)
-    classifier = "javadoc"
+    archiveClassifier = "javadoc"
 }
 
 test {
     useJUnitPlatform()
     finalizedBy(jacocoTestReport)
-    ignoreFailures = true
+    ignoreFailures = false
+    defaultCharacterEncoding = "UTF-8"
+    testLogging.showStandardStreams = true
 }
 
 jacoco {
@@ -225,6 +222,7 @@ jacocoTestReport {
     reports {
         xml.required = false
         csv.required = false
+        html.required = true
     }
 }
 
