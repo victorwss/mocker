@@ -315,7 +315,7 @@ public class Mocker<A> {
      * Checks if the rule with the given name is enabled.
      * @param name The name of the rule.
      * @return {@code true} if there exists an enabled rule with the given name, {@code false} otherwise.
-     * @throws IllegalArgumentException If {@code name} is {@code null} .
+     * @throws IllegalArgumentException If {@code name} is {@code null}.
      * @throws NoSuchElementException If there is no such rule as the given name.
      */
     @Synchronized
