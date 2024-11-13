@@ -11,7 +11,9 @@ plugins {
 
 description = "Mocker"
 group = "ninja.javahacker"
-version = "1.1.0-2024.10.13"
+version = "1.1.0-2024.11.10"
+
+def repoUrl = "file:///${System.getenv('maven.repo.local')}".replace("\\", "/")
 
 def artifactName = "mocker"
 def moduleName = "ninja.javahacker.mocker"
@@ -22,7 +24,6 @@ def doclint = true
 def versionApiguardian = "1.1.2"
 def versionAsm         = "9.7"
 def versionCheckstyle  = "10.18.2"
-def versionSbContrib   = "7.6.5"
 def versionFindSecBugs = "1.13.0"
 def versionJaCoCo      = "0.8.12"
 def versionJcip        = "1.0-1"
@@ -30,6 +31,7 @@ def versionJunit       = "5.11.2"
 def versionJunitPlatf  = "1.11.2"
 def versionLombok      = "1.18.34"
 def versionPmd         = "7.6.0"
+def versionSbContrib   = "7.6.5"
 def versionSpotBugs    = "4.8.6"
 def versionSlf4j       = "2.0.16"
 
@@ -37,44 +39,69 @@ def versionReifiedGenerics = version
 
 dependencies {
 
-    // JUnit
-    testImplementation(group: "org.junit.platform", name: "junit-platform-launcher", version: versionJunitPlatf)
-    testImplementation(group: "org.junit.jupiter", name: "junit-jupiter-api", version: versionJunit)
-    testImplementation(group: "org.junit.jupiter", name: "junit-jupiter-params", version: versionJunit)
-    testImplementation(group: "org.junit.jupiter", name: "junit-jupiter-engine", version: versionJunit)
-    testImplementation(group: "org.apiguardian", name: "apiguardian-api", version: versionApiguardian)
+    // JUnit.
+    testImplementation(group: "org.junit.platform", name: "junit-platform-launcher", version: versionJunitPlatf )
+    testImplementation(group: "org.junit.jupiter" , name: "junit-jupiter-api"      , version: versionJunit      )
+    testImplementation(group: "org.junit.jupiter" , name: "junit-jupiter-params"   , version: versionJunit      )
+    testImplementation(group: "org.junit.jupiter" , name: "junit-jupiter-engine"   , version: versionJunit      )
+    testImplementation(group: "org.apiguardian"   , name: "apiguardian-api"        , version: versionApiguardian)
 
-    // Lombok
+    // Lombok.
     annotationProcessor    (group: "org.projectlombok", name: "lombok", version: versionLombok)
     compileOnlyApi         (group: "org.projectlombok", name: "lombok", version: versionLombok)
     testAnnotationProcessor(group: "org.projectlombok", name: "lombok", version: versionLombok)
     testCompileOnly        (group: "org.projectlombok", name: "lombok", version: versionLombok)
 
-    // Reified-Generics
+    // Reified-Generics.
     api(group: "ninja.javahacker", name: "reified-generic", version: versionReifiedGenerics)
 
-    // SpotBugs + plugins + dependencies
-    spotbugs(group: "com.github.spotbugs", name: "spotbugs", version: versionSpotBugs)
-    spotbugs(group: "org.slf4j", name: "slf4j-api"   , version: versionSlf4j)
-    spotbugs(group: "org.slf4j", name: "slf4j-simple", version: versionSlf4j)
-    spotbugs(group: "org.ow2.asm", name: "asm", version: versionAsm)
+    // SpotBugs + plugins + dependencies.
+    compileOnlyApi (group: "com.github.stephenc.jcip"  , name: "jcip-annotations"    , version: versionJcip       )
+    compileOnlyApi (group: "com.github.spotbugs"       , name: "spotbugs-annotations", version: versionSpotBugs   )
+    spotbugsPlugins(group: "com.h3xstream.findsecbugs" , name: "findsecbugs-plugin"  , version: versionFindSecBugs)
+    spotbugsPlugins(group: "com.mebigfatguy.sb-contrib", name: "sb-contrib"          , version: versionSbContrib  )
+    spotbugs(group: "com.github.spotbugs", name: "spotbugs"    , version: versionSpotBugs)
+    spotbugs(group: "org.slf4j"          , name: "slf4j-api"   , version: versionSlf4j   )
+    spotbugs(group: "org.slf4j"          , name: "slf4j-simple", version: versionSlf4j   )
+    spotbugs(group: "org.ow2.asm"        , name: "asm"         , version: versionAsm     )
     spotbugs(configurations.spotbugsPlugins.dependencies)
-    spotbugs(configurations.apiElements.dependencies)
-    compileOnlyApi(group: "com.github.stephenc.jcip", name: "jcip-annotations", version: versionJcip)
-    compileOnlyApi(group: "com.github.spotbugs", name: "spotbugs-annotations", version: versionSpotBugs)
-    spotbugsPlugins(group: "com.h3xstream.findsecbugs", name: "findsecbugs-plugin", version: versionFindSecBugs)
-    spotbugsPlugins(group: "com.mebigfatguy.sb-contrib", name: "sb-contrib", version: versionSbContrib)
+    spotbugs(configurations.apiElements.dependencies    )
 }
 
 println("Using Java " + org.gradle.api.JavaVersion.current() + ".")
+println("Local repo: ${repoUrl}")
 
 repositories {
     flatDir {
         dirs("libs")
     }
-    mavenLocal()
+    maven {
+        url(repoUrl)
+    }
     mavenCentral()
     gradlePluginPortal()
+    if ("edge" in versionLombok) {
+        maven {
+            url("https://projectlombok.org/edge-releases")
+        }
+    }
+}
+
+task delombok {
+    description = "Delomboks the source code."
+    doLast {
+        configurations {
+            delombokAll {
+                extendsFrom(compileClasspath)
+                canBeResolved = true
+            }
+        }
+        def justDelombok = "${configurations.annotationProcessor.asPath};"
+        def delombokPath = "${configurations.delombokAll.asPath};"
+        ant.mkdir(dir: "build/src-delomboked")
+        ant.taskdef(name: "delombok", classname: "lombok.delombok.ant.Tasks\$Delombok", classpath: justDelombok)
+        ant.delombok(verbose: "false", encoding: "UTF-8", to: "build/src-delomboked", from: "src/main/java", modulepath: delombokPath)
+    }
 }
 
 tasks.withType(JavaCompile) {
@@ -94,6 +121,8 @@ tasks.withType(JavaCompile) {
 }
 
 compileJava {
+    dependsOn(delombok)
+    source = ["build/src-delomboked"]
     sourceCompatibility = versionJavaCompiler
     targetCompatibility = versionJavaCompiler
     if (doclint) {
@@ -109,22 +138,6 @@ compileTestJava {
     options.compilerArgs << "-Xdoclint:none"
 }
 
-task delombok {
-    description = "Delomboks the source code."
-    doLast {
-        configurations {
-            delombokAll {
-                extendsFrom(compileClasspath)
-                canBeResolved = true
-            }
-        }
-        def delombokPath = "${configurations.delombokAll.asPath};"
-        ant.mkdir(dir: "build/src-delomboked")
-        ant.taskdef(name: "delombok", classname: "lombok.delombok.ant.Tasks\$Delombok", classpath: delombokPath)
-        ant.delombok(verbose: "false", encoding: "UTF-8", to: "build/src-delomboked", from: "src/main/java", modulepath: delombokPath)
-    }
-}
-
 tasks.withType(Javadoc) {
     dependsOn(delombok)
     source = ["build/src-delomboked"]
@@ -137,7 +150,7 @@ tasks.withType(Javadoc) {
     options.addBooleanOption("html5", true)
     options.tags = ["apiNote:a:API Note:", "implSpec:a:Implementation Requirements:", "implNote:a:Implementation Note:"]
     if (doclint) {
-        options.addBooleanOption("Xdoclint:all/protected", true)
+        options.addBooleanOption("Xdoclint:all", true)
     } else {
         options.addBooleanOption("Xdoclint:none", true)
     }
@@ -189,10 +202,6 @@ tasks.withType(com.github.spotbugs.snom.SpotBugsTask) {
 jar {
     archiveBaseName = artifactName
     duplicatesStrategy = "exclude"
-    inputs.property("moduleName", moduleName)
-    manifest {
-        attributes("Automatic-Module-Name": moduleName)
-    }
 }
 
 task sourcesJar(type: Jar) {
@@ -244,7 +253,9 @@ publishing {
         }
     }
     repositories {
-        mavenLocal()
+        maven {
+            url = repoUrl
+        }
     }
 }
 

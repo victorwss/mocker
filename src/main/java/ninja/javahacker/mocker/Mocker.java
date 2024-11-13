@@ -14,20 +14,16 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.Synchronized;
 import lombok.Value;
-import lombok.experimental.FieldDefaults;
-import lombok.experimental.NonFinal;
 import ninja.javahacker.reifiedgeneric.ReifiedGeneric;
 import ninja.javahacker.reifiedgeneric.Token;
 
@@ -44,8 +40,7 @@ import ninja.javahacker.reifiedgeneric.Token;
  *
  * @author Victor Williams Stafusa da Silva
  */
-@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class Mocker<A> {
+public final class Mocker<A> {
 
     /**
      * Maps each primitive type to its default uninitialized value.
@@ -69,7 +64,7 @@ public class Mocker<A> {
      */
     @NonNull
     @Getter
-    A target;
+    private final A target;
 
     /**
      * The mocked interface.
@@ -78,22 +73,20 @@ public class Mocker<A> {
      * @return The mocked interface.
      */
     @NonNull
-    Class<A> type;
+    private final Class<A> type;
 
     /**
      * The rules defined for the behavior of the mock instance.
      */
     @NonNull
-    Map<String, Rule<A, ?>> actions;
+    private final Map<String, Rule<A, ?>> actions;
 
     /**
      * Represents a rule encapsulating a behavior to be performed sometime by the mock.
      * @param <A> The type implemented by the mock.
      * @param <R> The return type of the encapsulated behavior.
      */
-    @Data
-    @AllArgsConstructor
-    @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+    @SuppressWarnings("checkstyle:JavadocTagContinuationIndentation")
     private static class Rule<A, R> {
 
         /**
@@ -102,8 +95,8 @@ public class Mocker<A> {
          * Determines if the rule is enabled or not.
          * @return Whether the rule is enabled or not.
          */
-        @NonFinal
-        boolean enabled;
+        @Getter
+        private boolean enabled;
 
         /**
          * The test that checks if this rule can be triggered.
@@ -112,7 +105,8 @@ public class Mocker<A> {
          * @return The test that checks if this rule can be triggered.
          */
         @NonNull
-        Predicate<Call<A>> test;
+        @Getter
+        private final Predicate<Call<A>> test;
 
         /**
          * The behavior of this rule.
@@ -121,7 +115,28 @@ public class Mocker<A> {
          * @return The behavior of this rule.
          */
         @NonNull
-        Action<A, R> action;
+        @Getter
+        private final Action<A, R> action;
+
+        /**
+         * Constructor for the rule.
+         * @param enabled If the rule is enabled or not.
+         * @param test The test that checks if this rule can be triggered.
+         * @param action The behavior of this rule.
+         */
+        public Rule(boolean enabled, @NonNull Predicate<Call<A>> test, @NonNull Action<A, R> action) {
+            this.enabled = enabled;
+            this.test = test;
+            this.action = action;
+        }
+
+        /**
+         * Defines if the rule is enabled or not.
+         * @param enabled The new value.
+         */
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
     }
 
     /**
@@ -152,7 +167,7 @@ public class Mocker<A> {
     @Nullable
     @Synchronized
     @SuppressFBWarnings("UP_UNUSED_PARAMETER")
-    private Object invoke(Object instance, @NonNull Method m, Object[] args) throws Throwable {
+    private Object invoke(Object instance, @NonNull Method m, @Nullable Object[] args) throws Throwable {
         if (args == null) args = new Object[0];
         var call = new Call<>(target, m, List.of(args));
         for (var e : actions.values()) {
@@ -170,7 +185,7 @@ public class Mocker<A> {
      */
     @SuppressWarnings("unchecked")
     @SuppressFBWarnings("UPM_UNCALLED_PRIVATE_METHOD")
-    private static <R> R defaultReturnFor(Method m) {
+    private static <R> R defaultReturnFor(@NonNull Method m) {
         return (R) ZEROS.getOrDefault(m.getReturnType(), null);
     }
 
@@ -376,39 +391,48 @@ public class Mocker<A> {
      * A builder object for defining the behavior of some still unspecified method.
      * @param <A> The type implemented by the mock.
      */
-    @AllArgsConstructor(access = AccessLevel.PRIVATE)
-    @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
     public static final class OngoingRuleDefinition<A> {
 
         /**
          * The {@link Mocker} for which we are defining a rule.
          */
-        @NonNull Mocker<A> owner;
+        @NonNull
+        private final Mocker<A> owner;
 
         /**
          * The name of the rule being defined.
          */
-        @NonNull String rule;
+        @NonNull
+        private final String rule;
 
-        private Predicate<Call<A>> chooseMethod(Consumer<A> doIt) {
-            var choosen = new Method[1];
+        /**
+         * Constructor for the {@code OngoingRuleDefinition}.
+         * @param owner The {@link Mocker} for which we are defining a rule.
+         * @param rule The name of the rule being defined.
+         */
+        private OngoingRuleDefinition(@NonNull Mocker<A> owner, @NonNull String rule) {
+            this.owner = owner;
+            this.rule = rule;
+        }
+
+        private Predicate<Call<A>> chooseMethod(@NonNull Consumer<A> doIt) {
+            var choosen = new AtomicReference<Method>(null);
             InvocationHandler ih = (p, m, args) -> {
-                if (choosen[0] != null) {
+                if (choosen.compareAndExchange(null, m) != null) {
                     throw new IllegalArgumentException("Don't call more than one method in the given object!");
                 }
-                choosen[0] = m;
                 return defaultReturnFor(m);
             };
             var ccl = Thread.currentThread().getContextClassLoader();
             var t = owner.type;
             var stubber = t.cast(Proxy.newProxyInstance(ccl, new Class<?>[] {t}, ih));
             doIt.accept(stubber);
-            if (choosen[0] == null) throw new IllegalArgumentException("You didn't called anything in the given object!");
-            return c -> c.getMethod() == choosen[0];
+            if (choosen.get() == null) throw new IllegalArgumentException("You didn't call anything in the given object!");
+            return c -> c.getMethod() == choosen.get();
         }
 
-        private Predicate<Call<A>> chooseMethods(Consumer<A> doIt) {
-            Set<Method> choosens = new LinkedHashSet<>();
+        private Predicate<Call<A>> chooseMethods(@NonNull Consumer<A> doIt) {
+            Set<Method> choosens = Collections.synchronizedSet(new LinkedHashSet<>());
             InvocationHandler ih = (p, m, args) -> {
                 choosens.add(m);
                 return defaultReturnFor(m);
@@ -417,7 +441,7 @@ public class Mocker<A> {
             var t = owner.type;
             var stubber = t.cast(Proxy.newProxyInstance(ccl, new Class<?>[] {t}, ih));
             doIt.accept(stubber);
-            if (choosens.isEmpty()) throw new IllegalArgumentException("You didn't called anything in the given object!");
+            if (choosens.isEmpty()) throw new IllegalArgumentException("You didn't call anything in the given object!");
             return c -> choosens.contains(c.getMethod());
         }
 
@@ -490,24 +514,37 @@ public class Mocker<A> {
      * @param <A> The type implemented by the mock.
      * @param <R> The return type of the method for which the behavior will be defined.
      */
-    @AllArgsConstructor(access = AccessLevel.PRIVATE)
-    @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
     public static final class Receiver<A, R> {
 
         /**
          * The {@link Mocker} for which we are defining a rule.
          */
-        @NonNull Mocker<A> owner;
+        @NonNull
+        private final Mocker<A> owner;
 
         /**
          * The name of the rule being defined.
          */
-        @NonNull String rule;
+        @NonNull
+        private final String rule;
 
         /**
          * The condition that must be satisfied to allow the rule be triggered.
          */
-        @NonNull Predicate<Call<A>> condition;
+        @NonNull
+        private final Predicate<Call<A>> condition;
+
+        /**
+         * Constructor for the {@code Receiver}.
+         * @param owner The {@link Mocker} for which we are defining a rule.
+         * @param rule The name of the rule being defined.
+         * @param condition The condition that must be satisfied to allow the rule be triggered.
+         */
+        private Receiver(@NonNull Mocker<A> owner, @NonNull String rule, @NonNull Predicate<Call<A>> condition) {
+            this.owner = owner;
+            this.rule = rule;
+            this.condition = condition;
+        }
 
         /**
          * Defines a condition that must be true in order to trigger this behavior.
@@ -551,24 +588,37 @@ public class Mocker<A> {
      * A builder object for defining the behavior of some specific {@code void}-returning method.
      * @param <A> The type implemented by the mock.
      */
-    @AllArgsConstructor(access = AccessLevel.PRIVATE)
-    @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
     public static final class VoidReceiver<A> {
 
         /**
          * The {@link Mocker} for which we are defining a rule.
          */
-        @NonNull Mocker<A> owner;
+        @NonNull
+        private final Mocker<A> owner;
 
         /**
          * The name of the rule being defined.
          */
-        @NonNull String rule;
+        @NonNull
+        private final String rule;
 
         /**
          * The condition that must be satisfied to allow the rule be triggered.
          */
-        @NonNull Predicate<Call<A>> condition;
+        @NonNull
+        private final Predicate<Call<A>> condition;
+
+        /**
+         * Constructor for the {@code Receiver}.
+         * @param owner The {@link Mocker} for which we are defining a rule.
+         * @param rule The name of the rule being defined.
+         * @param condition The condition that must be satisfied to allow the rule be triggered.
+         */
+        private VoidReceiver(@NonNull Mocker<A> owner, @NonNull String rule, @NonNull Predicate<Call<A>> condition) {
+            this.owner = owner;
+            this.rule = rule;
+            this.condition = condition;
+        }
 
         /**
          * Defines a condition that must be true in order to trigger this behavior.
@@ -615,7 +665,6 @@ public class Mocker<A> {
      * @param <A> The type of the instance for which the method is being or was called.
      */
     @Value
-    @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
     public static final class Call<A> {
 
         /**
@@ -624,7 +673,8 @@ public class Mocker<A> {
          * Obtains the mock instance for which some method is called.
          * @return The mock instance for which some method is called.
          */
-        @NonNull A instance;
+        @NonNull
+        private final A instance;
 
         /**
          * The called method.
@@ -632,7 +682,8 @@ public class Mocker<A> {
          * Obtains the called method.
          * @return The called method.
          */
-        @NonNull Method method;
+        @NonNull
+        private final Method method;
 
         /**
          * The real parameters of the method.
@@ -640,10 +691,11 @@ public class Mocker<A> {
          * Obtains the real parameters of the method.
          * @return The real parameters of the method.
          */
-        @NonNull List<?> arguments;
+        @NonNull
+        private final List<?> arguments;
 
         /**
-         * Constructs an instnce.
+         * Constructs an instance.
          * @param instance The mock instance for which some method is called.
          * @param method The called method.
          * @param arguments The real parameters of the method.
@@ -653,7 +705,7 @@ public class Mocker<A> {
         public Call(@NonNull A instance, @NonNull Method method, @NonNull List<?> arguments) {
             this.instance = instance;
             this.method = method;
-            this.arguments = Collections.unmodifiableList(arguments);
+            this.arguments = List.copyOf(arguments);
         }
 
         /**
